@@ -4,6 +4,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace DngOpcodesEditor
 {
@@ -93,6 +94,7 @@ namespace DngOpcodesEditor
                     {
                         Opcodes.Add(opcode);
                     }
+                    SelectedOpcode = Opcodes.Last();
                 }
             }
         }
@@ -110,6 +112,7 @@ namespace DngOpcodesEditor
             {
                 Opcodes.Add(opcode);
             }
+            SelectedOpcode = Opcodes.Last();
         }
         public void ExportBin()
         {

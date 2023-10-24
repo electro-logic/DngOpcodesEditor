@@ -4,7 +4,7 @@ Read, Write and Preview DNG Opcodes
 
 ![alt text](docs/screenshoot.png)
 
-Opcodes parameters can be freely changed to see the effect on the image.
+Opcodes parameters can be freely changed to see the effect on the image in real-time.
 
 Supported opcodes:
 
