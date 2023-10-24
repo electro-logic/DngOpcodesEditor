@@ -28,18 +28,18 @@ namespace DngOpcodesEditor
                 {
                     double r = Math.Sqrt(Math.Pow(x - cx, 2) + Math.Pow(y - cy, 2)) / m;
                     double g = 1.0 + k0 * Math.Pow(r, 2) + k1 * Math.Pow(r, 4) + k2 * Math.Pow(r, 6) + k3 * Math.Pow(r, 8) + k4 * Math.Pow(r, 10);
-                    var pixel = img[x, y];  // BGRA32
+                    var pixel = img[x, y];  
+                    // Unpack / Pack BGRA32
                     byte pixel_b = (byte)(pixel & 0xFF);
                     byte pixel_g = (byte)((pixel >> 8) & 0xFF);
                     byte pixel_r = (byte)((pixel >> 16) & 0xFF);
                     byte pixel_a = (byte)((pixel >> 24) & 0xFF);
-                    pixel_b = (byte)Math.Round(pixel_b * g);
-                    pixel_g = (byte)Math.Round(pixel_g * g);
-                    pixel_r = (byte)Math.Round(pixel_r * g);
+                    pixel_b = (byte)Math.Clamp(Math.Round(pixel_b * g), 0, 255);
+                    pixel_g = (byte)Math.Clamp(Math.Round(pixel_g * g), 0, 255);
+                    pixel_r = (byte)Math.Clamp(Math.Round(pixel_r * g), 0, 255);
                     img[x, y] = pixel_b | (pixel_g << 8) | (pixel_r << 16) | (pixel_a << 24);
                 }
-            }
-            );
+            });
         }
         public static void WarpRectilinear(Image img, OpcodeWarpRectilinear parameters)
         {
@@ -55,9 +55,7 @@ namespace DngOpcodesEditor
             double t0 = parameters.coefficients[4];
             double t1 = parameters.coefficients[5];
             double ncx = parameters.cx;
-            double ncy = parameters.cy;
-
-            // It is recommended that implementations use a suitable resampling kernel, such as a cubic spline.
+            double ncy = parameters.cy;            
             int x0 = 0; int y0 = 0;
             int x1 = img.Width - 1; int y1 = img.Height - 1;
             double cx = x0 + ncx * (x1 - x0);
@@ -70,6 +68,7 @@ namespace DngOpcodesEditor
             {
                 unchecked { newImg[newImgIndex] = (Int32)0xFF000000; }
             }
+            // TODO: resampling kernel (ex. cubic spline)
             Parallel.For(0, img.Height, (y) =>
             {
                 for (int x = 0; x < img.Width; x++)
@@ -89,8 +88,7 @@ namespace DngOpcodesEditor
                         newImg[x + y * img.Width] = img[xSrc, ySrc];
                     }
                 }
-            }
-            );
+            });
             img._pixels = newImg;
         }
     }
