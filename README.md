@@ -4,12 +4,13 @@ Read, Write and Preview DNG Opcodes
 
 ![alt text](docs/screenshoot.png)
 
+Opcodes parameters can be freely changed to see the effect on the image.
+
 Supported opcodes:
 
 - FixVignetteRadial
-- WarpRectilinear
-
-Please open an issue if you need a specific opcode
+- WarpRectilinear (single plane only, based on the Brown-Conrady distortion model)
+- Please open an issue if you need a specific opcode
 
 Required Software:
 
@@ -22,4 +23,5 @@ Links:
 
 Note:
 
-This project is not an official DNG Tool
+- This project is not an official DNG Tool.
+- Metadata reading/writing is based on ExifTool.

@@ -52,10 +52,10 @@ namespace DngOpcodesEditor
                 switch (opcode.header.id)
                 {
                     case OpcodeId.WarpRectilinear:
-                        OpcodeImplementation.WarpRectilinear(ImgDst, opcode as OpcodeWarpRectilinear);
+                        OpcodesImplementation.WarpRectilinear(ImgDst, opcode as OpcodeWarpRectilinear);
                         break;
                     case OpcodeId.FixVignetteRadial:
-                        OpcodeImplementation.FixVignetteRadial(ImgDst, opcode as OpcodeFixVignetteRadial);
+                        OpcodesImplementation.FixVignetteRadial(ImgDst, opcode as OpcodeFixVignetteRadial);
                         break;
                     default:
                         Debug.WriteLine($"{opcode.header.id} not implemented yet and skipped");

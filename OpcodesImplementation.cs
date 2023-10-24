@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using System.Windows;
 
 namespace DngOpcodesEditor
 {
-    public static class OpcodeImplementation
+    public static class OpcodesImplementation
     {
         public static void FixVignetteRadial(Image img, OpcodeFixVignetteRadial parameters)
         {
