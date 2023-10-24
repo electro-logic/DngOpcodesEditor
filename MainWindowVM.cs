@@ -16,6 +16,16 @@ namespace DngOpcodesEditor
         Opcode _selectedOpcode;
         [ObservableProperty]
         Image _imgSrc, _imgDst;
+        public MainWindowVM()
+        {
+            _opcodes.CollectionChanged += (s, e) =>
+            {
+                if (!Opcodes.Contains(SelectedOpcode))
+                {
+                    SelectedOpcode = Opcodes.Last();
+                }
+            };
+        }
         public void OpenImage()
         {
             var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*" };

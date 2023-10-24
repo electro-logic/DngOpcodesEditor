@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 
 namespace DngOpcodesEditor
@@ -70,14 +71,20 @@ namespace DngOpcodesEditor
                                 FieldName = field.Name,
                                 ArrayIndex = arrayIndex
                             };
-                            parameters.PropertyChanged += (s, e) => {
-
-                                var p = s as OpcodeParameter;
-                                var field = GetType().GetField(p.FieldName);
-                                var array = field.GetValue(this) as Array;
-                                var arrayType = array.GetType().GetElementType();
-                                var newValue = Convert.ChangeType(p.Value, arrayType);
-                                array.SetValue(newValue, p.ArrayIndex);
+                            parameters.PropertyChanging += (s, e) => {
+                                try
+                                {
+                                    var p = s as OpcodeParameter;
+                                    var field = GetType().GetField(p.FieldName);
+                                    var array = field.GetValue(this) as Array;
+                                    var arrayType = array.GetType().GetElementType();
+                                    var newValue = Convert.ChangeType(p.Value, arrayType);
+                                    array.SetValue(newValue, p.ArrayIndex);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine(ex);
+                                }
                             };
                             result.Add(parameters);
                         }
@@ -90,11 +97,17 @@ namespace DngOpcodesEditor
                             Value = field.GetValue(this),
                             FieldName = field.Name
                         };
-                        parameters.PropertyChanged += (s,e)=> {
-
-                            var p = s as OpcodeParameter;
-                            var field = GetType().GetField(p.FieldName);
-                            field.SetValue(this, Convert.ChangeType(p.Value, field.FieldType));
+                        parameters.PropertyChanging += (s,e)=> {
+                            try
+                            {
+                                var p = s as OpcodeParameter;
+                                var field = GetType().GetField(p.FieldName);
+                                field.SetValue(this, Convert.ChangeType(p.Value, field.FieldType));
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine(ex);
+                            }
                         };
                         result.Add(parameters);
                     }

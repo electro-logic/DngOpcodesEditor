@@ -8,6 +8,7 @@ namespace DngOpcodesEditor
     {
         public static void FixVignetteRadial(Image img, OpcodeFixVignetteRadial parameters)
         {
+            var sw = Stopwatch.StartNew();
             double k0 = parameters.k0;
             double k1 = parameters.k1;
             double k2 = parameters.k2;
@@ -40,9 +41,11 @@ namespace DngOpcodesEditor
                     img[x, y] = pixel_b | (pixel_g << 8) | (pixel_r << 16) | (pixel_a << 24);
                 }
             });
+            Debug.WriteLine($"FixVignetteRadial executed in {sw.ElapsedMilliseconds}ms");
         }
         public static void WarpRectilinear(Image img, OpcodeWarpRectilinear parameters)
         {
+            var sw = Stopwatch.StartNew();
             if (parameters.planes != 1)
             {
                 Debug.WriteLine("Multiple planes support not implemented");
@@ -90,6 +93,7 @@ namespace DngOpcodesEditor
                 }
             });
             img._pixels = newImg;
+            Debug.WriteLine($"WarpRectilinear executed in {sw.ElapsedMilliseconds}ms");
         }
     }
 }
