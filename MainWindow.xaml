@@ -21,7 +21,7 @@
         <DataGrid Grid.Column="2" ItemsSource="{Binding SelectedOpcode.Parameters}" AutoGenerateColumns="False" Grid.Row="1" 
                   CanUserAddRows="False" CanUserDeleteRows="False">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Parameter" Binding="{Binding Description}" />
+                <DataGridTextColumn IsReadOnly="True" Header="Parameter" Binding="{Binding Description}" />
                 <DataGridTextColumn Header="Value" Binding="{Binding Value, StringFormat=F4}" />
                 <DataGridTemplateColumn Header="Value (Slider)" Width="*">
                     <DataGridTemplateColumn.CellTemplate>
