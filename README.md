@@ -14,12 +14,12 @@ Supported opcodes:
 
 Required Software:
 
-- Microsoft Visual Studio 2022 (WPF / .NET 6)
+- [.NET Desktop Runtime 6](https://dotnet.microsoft.com/en-us/download/dotnet/6.0)
+- [ExifTool](https://exiftool.org)
 
 Useful links:
 
 - [DNG 1.7.0.0 Specification](https://helpx.adobe.com/camera-raw/digital-negative.html)
-- [ExifTool](https://exiftool.org)
 
 Notes:
 
