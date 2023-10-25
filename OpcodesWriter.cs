@@ -21,6 +21,9 @@ namespace DngOpcodesEditor
                     case OpcodeId.FixVignetteRadial:
                         FixVignetteRadial(op as OpcodeFixVignetteRadial);
                         break;
+                    case OpcodeId.TrimBounds:
+                        TrimBounds(op as OpcodeTrimBounds);
+                        break;
                     default:
                         WriteOpcodeHeader(op.header);
                         _ms.Write(new byte[op.header.bytesCount]);
@@ -70,6 +73,14 @@ namespace DngOpcodesEditor
             _ms.WriteDouble(cy);
         }
         public void FixVignetteRadial(OpcodeFixVignetteRadial parameters) => FixVignetteRadial(parameters.k0, parameters.k1, parameters.k2, parameters.k3, parameters.k4, parameters.cx, parameters.cy);
-
+        public void TrimBounds(UInt32 top, UInt32 left, UInt32 bottom, UInt32 right)
+        {        
+            WriteOpcodeHeader(OpcodeId.TrimBounds, DngVersion.DNG_VERSION_1_3_0_0, OpcodeFlag.OptionalPreview, 16);
+            _ms.WriteUInt32(top);
+            _ms.WriteUInt32(left);
+            _ms.WriteUInt32(bottom);
+            _ms.WriteUInt32(right);
+        }
+        public void TrimBounds(OpcodeTrimBounds parameters) => TrimBounds(parameters.top, parameters.left, parameters.bottom, parameters.right);
     }
 }

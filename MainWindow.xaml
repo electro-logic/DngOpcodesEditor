@@ -19,7 +19,7 @@
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
         <DataGrid Grid.Column="2" ItemsSource="{Binding SelectedOpcode.Parameters}" AutoGenerateColumns="False" Grid.Row="1" 
-                  CellEditEnding="DataGrid_CellEditEnding" CanUserAddRows="False" CanUserDeleteRows="False">
+                  CanUserAddRows="False" CanUserDeleteRows="False">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Parameter" Binding="{Binding Description}" />
                 <DataGridTextColumn Header="Value" Binding="{Binding Value, StringFormat=F4}" />
@@ -28,8 +28,7 @@
                         <DataTemplate>
                             <Slider Value="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                                     Minimum="-10" Maximum="10" SmallChange="0.01" LargeChange="0.1" 
-                                    TickFrequency="0.01"
-                                    IsSnapToTickEnabled="True" ValueChanged="Slider_ValueChanged" />
+                                    TickFrequency="0.01" IsSnapToTickEnabled="True"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -61,10 +60,11 @@
             </StackPanel>
         </Grid>
         <Image Grid.Row="3" Source="{Binding ImgSrc.Bmp}" />
+        <Button Content="Open Reference Image" Grid.Row="5" Click="btnOpenImage_Click" />
         <Image Grid.Row="3" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
-        <Button Content="Open Preview Image" Grid.Row="5" Click="btnOpenImage_Click" />
+        <Button Content="Save Preview Image" Grid.Row="5" Grid.Column="2" Click="btnSaveImage_Click" />
         <!--<Button Grid.Column="2" Content="Apply Opcodes" Grid.Row="5" Click="btnApplyOpcodes_Click"/>-->
-        <TextBlock Text="Opcodes List 3"/>
+        <TextBlock Text="Opcodes List"/>
         <TextBlock Grid.Column="2" Text="Opcode parameters"/>
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="2" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
     </Grid>

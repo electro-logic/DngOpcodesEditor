@@ -6,6 +6,20 @@ namespace DngOpcodesEditor
 {
     public static class OpcodesImplementation
     {
+        public static void TrimBounds(Image img, OpcodeTrimBounds parameters)
+        {
+            // In this implementation we keep the original size and we only mask trimmed pixels
+            Parallel.For(0, img.Height, (y) =>
+            {
+                for (int x = 0; x < img.Width; x++)
+                {
+                    if ((x < parameters.left) || (x > parameters.right) || (y < parameters.top) || (y > parameters.bottom))
+                    {
+                        unchecked { img[x, y] = (Int32)0xFF000000; }
+                    }
+                }
+            });
+        }
         public static void FixVignetteRadial(Image img, OpcodeFixVignetteRadial parameters)
         {
             var sw = Stopwatch.StartNew();
@@ -41,14 +55,15 @@ namespace DngOpcodesEditor
                     img[x, y] = pixel_b | (pixel_g << 8) | (pixel_r << 16) | (pixel_a << 24);
                 }
             });
-            Debug.WriteLine($"FixVignetteRadial executed in {sw.ElapsedMilliseconds}ms");
+            Debug.WriteLine($"\tFixVignetteRadial executed in {sw.ElapsedMilliseconds}ms");
         }
         public static void WarpRectilinear(Image img, OpcodeWarpRectilinear parameters)
         {
+            // TODO: resampling kernel (ex. cubic spline)
             var sw = Stopwatch.StartNew();
             if (parameters.planes != 1)
             {
-                Debug.WriteLine("Multiple planes support not implemented");
+                Debug.WriteLine("Multiple planes support not implemented yet");
                 return;
             }
             double r0 = parameters.coefficients[0];
@@ -71,7 +86,6 @@ namespace DngOpcodesEditor
             {
                 unchecked { newImg[newImgIndex] = (Int32)0xFF000000; }
             }
-            // TODO: resampling kernel (ex. cubic spline)
             Parallel.For(0, img.Height, (y) =>
             {
                 for (int x = 0; x < img.Width; x++)
@@ -93,7 +107,7 @@ namespace DngOpcodesEditor
                 }
             });
             img._pixels = newImg;
-            Debug.WriteLine($"WarpRectilinear executed in {sw.ElapsedMilliseconds}ms");
+            Debug.WriteLine($"\tWarpRectilinear executed in {sw.ElapsedMilliseconds}ms");
         }
     }
 }

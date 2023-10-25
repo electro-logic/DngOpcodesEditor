@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 
@@ -8,11 +9,14 @@ namespace DngOpcodesEditor
 {
     public enum OpcodeId : uint
     {
+        [Description("Correct radial and tangential distortions and lateral chromatic aberration for rectilinear lenses")]
         WarpRectilinear = 1,
         WarpFisheye = 2,
+        [Description("Correct vignetting with a radially-symmetric gain function")]
         FixVignetteRadial = 3,
         FixBadPixelsConstant = 4,
         FixBadPixelsList = 5,
+        [Description("Trims the image to the specified rectangle")]
         TrimBounds = 6,
         MapTable = 7,
         MapPolynomial = 8,
@@ -30,11 +34,11 @@ namespace DngOpcodesEditor
     }
     public enum DngVersion : uint
     {
-        DNG_VERSION_1_3_0_0 = 0x0103,
-        DNG_VERSION_1_4_0_0 = 0x0104,
-        DNG_VERSION_1_5_0_0 = 0x0105,
-        DNG_VERSION_1_6_0_0 = 0x0106,
-        DNG_VERSION_1_7_0_0 = 0x0107
+        DNG_VERSION_1_3_0_0 = 0x01030000,
+        DNG_VERSION_1_4_0_0 = 0x01040000,
+        DNG_VERSION_1_5_0_0 = 0x01050000,
+        DNG_VERSION_1_6_0_0 = 0x01060000,
+        DNG_VERSION_1_7_0_0 = 0x01070000
     }
     public partial class OpcodeParameter : ObservableObject
     {
@@ -71,7 +75,7 @@ namespace DngOpcodesEditor
                                 FieldName = field.Name,
                                 ArrayIndex = arrayIndex
                             };
-                            parameters.PropertyChanging += (s, e) => {
+                            parameters.PropertyChanged += (s, e) => {
                                 try
                                 {
                                     var p = s as OpcodeParameter;
@@ -80,6 +84,7 @@ namespace DngOpcodesEditor
                                     var arrayType = array.GetType().GetElementType();
                                     var newValue = Convert.ChangeType(p.Value, arrayType);
                                     array.SetValue(newValue, p.ArrayIndex);
+                                    this.OnPropertyChanged(p.FieldName);
                                 }
                                 catch (Exception ex)
                                 {
@@ -97,12 +102,14 @@ namespace DngOpcodesEditor
                             Value = field.GetValue(this),
                             FieldName = field.Name
                         };
-                        parameters.PropertyChanging += (s,e)=> {
+                        parameters.PropertyChanged += (s,e)=> {
                             try
                             {
                                 var p = s as OpcodeParameter;
                                 var field = GetType().GetField(p.FieldName);
-                                field.SetValue(this, Convert.ChangeType(p.Value, field.FieldType));
+                                var newValue = Convert.ChangeType(p.Value, field.FieldType);
+                                field.SetValue(this, newValue);
+                                this.OnPropertyChanged(p.FieldName);
                             }
                             catch (Exception ex)
                             {
@@ -140,5 +147,12 @@ namespace DngOpcodesEditor
         public double k4;
         public double cx;
         public double cy;
+    }
+    public class OpcodeTrimBounds : Opcode
+    {
+        public UInt32 top;
+        public UInt32 left;
+        public UInt32 bottom;
+        public UInt32 right;
     }
 }

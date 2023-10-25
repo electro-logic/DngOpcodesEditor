@@ -47,6 +47,16 @@ namespace DngOpcodesEditor
             result.cy = _ms.ReadDouble();
             return result;
         }
+        OpcodeTrimBounds ReadTrimBounds(OpcodeHeader header)
+        {
+            var result = new OpcodeTrimBounds();
+            result.header = header;
+            result.top = _ms.ReadUInt32();
+            result.left = _ms.ReadUInt32();
+            result.bottom = _ms.ReadUInt32();
+            result.right = _ms.ReadUInt32();
+            return result;
+        }
         OpcodeHeader ReadOpcodeHeader()
         {
             var opcode = new OpcodeHeader();
@@ -65,6 +75,8 @@ namespace DngOpcodesEditor
                     return ReadWrapRectilinear(header);
                 case OpcodeId.FixVignetteRadial:
                     return ReadFixVignetteRadial(header);
+                case OpcodeId.TrimBounds:
+                    return ReadTrimBounds(header);
                 default:
                     _ms.Seek(header.bytesCount, SeekOrigin.Current);
                     return new Opcode() { header = header };
