@@ -1,6 +1,6 @@
 # Dng Opcodes Editor
 
-Read, Write and Preview DNG Opcodes
+Read, Write, Modify and Preview DNG Opcodes
 
 ![alt text](docs/screenshoot.png)
 
@@ -26,6 +26,6 @@ Notes:
 - This project is not an official DNG Tool.
 - Metadata reading/writing is based on ExifTool. Thank you Phil!
 - Open an issue if you need a specific opcode implemented
-- Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 in some cases
+- Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 if SubIFD is not defined.
 - TrimBounds may not be well supported by most RAW processors
 - FixVignetteRadial may require adjusting the strenght in some RAW processors
