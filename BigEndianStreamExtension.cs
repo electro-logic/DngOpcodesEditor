@@ -16,6 +16,10 @@ public static class BigEndianStreamExtension
     {
         var buffer = new byte[8]; stream.Read(buffer); return BinaryPrimitives.ReadUInt64BigEndian(buffer);
     }
+    public static float ReadFloat(this Stream stream)
+    {
+        var buffer = new byte[4]; stream.Read(buffer); return BinaryPrimitives.ReadSingleBigEndian(buffer);
+    }
     public static double ReadDouble(this Stream stream)
     {
         var buffer = new byte[8]; stream.Read(buffer); return BinaryPrimitives.ReadDoubleBigEndian(buffer);
@@ -31,6 +35,10 @@ public static class BigEndianStreamExtension
     public static void WriteUInt64(this Stream stream, UInt64 value)
     {
         byte[] _buffer = new byte[8]; BinaryPrimitives.WriteUInt64BigEndian(_buffer, value); stream.Write(_buffer);
+    }
+    public static void WriteFloat(this Stream stream, float value)
+    {
+        byte[] _buffer = new byte[4]; BinaryPrimitives.WriteSingleBigEndian(_buffer, value); stream.Write(_buffer);
     }
     public static void WriteDouble(this Stream stream, double value)
     {

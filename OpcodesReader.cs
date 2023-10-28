@@ -19,13 +19,42 @@ namespace DngOpcodesEditor
             }
             return opcodes.ToArray();
         }
+        OpcodeGainMap ReadGainMap(OpcodeHeader header)
+        {
+            var result = new OpcodeGainMap();
+            result.header = header;
+            result.top = _ms.ReadUInt32();
+            result.left = _ms.ReadUInt32();
+            result.bottom = _ms.ReadUInt32();
+            result.right = _ms.ReadUInt32();
+            result.plane = _ms.ReadUInt32();
+            result.planes = _ms.ReadUInt32();
+            result.rowPitch = _ms.ReadUInt32();
+            result.colPitch = _ms.ReadUInt32();
+            result.mapPointsV = _ms.ReadUInt32();
+            result.mapPointsH = _ms.ReadUInt32();
+            result.mapSpacingV = _ms.ReadDouble();
+            result.mapSpacingH = _ms.ReadDouble();
+            result.mapOriginV = _ms.ReadDouble();
+            result.mapOriginH = _ms.ReadDouble();
+            result.mapPlanes = _ms.ReadUInt32();
+            int mapGainsCount = (int)(result.mapPointsV * result.mapPointsH * result.mapPlanes);
+            var mapGains = new List<float>(mapGainsCount);
+            for (int mapGainsIndex = 0; mapGainsIndex < mapGainsCount; mapGainsIndex++)
+            {
+                mapGains.Add(_ms.ReadFloat());
+            }
+            result.mapGains = mapGains.ToArray();
+            return result;
+        }
         OpcodeWarpRectilinear ReadWrapRectilinear(OpcodeHeader header)
         {
             var result = new OpcodeWarpRectilinear();
             result.header = header;
             result.planes = _ms.ReadUInt32();
-            var coefficients = new List<double>();
-            for (int planeIndex = 0; planeIndex < result.planes * 6; planeIndex++)
+            int coefficientsCount = (int)(result.planes * 6);
+            var coefficients = new List<double>(coefficientsCount);
+            for (int planeIndex = 0; planeIndex < coefficientsCount; planeIndex++)
             {
                 coefficients.Add(_ms.ReadDouble());
             }
@@ -77,6 +106,8 @@ namespace DngOpcodesEditor
                     return ReadFixVignetteRadial(header);
                 case OpcodeId.TrimBounds:
                     return ReadTrimBounds(header);
+                case OpcodeId.GainMap: 
+                    return ReadGainMap(header);
                 default:
                     _ms.Seek(header.bytesCount, SeekOrigin.Current);
                     return new Opcode() { header = header };

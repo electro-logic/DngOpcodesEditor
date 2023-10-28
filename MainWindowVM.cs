@@ -59,16 +59,7 @@ namespace DngOpcodesEditor
                 SaveImage(dialog.FileName);
             }
         }
-        public void SaveImage(string filename)
-        {
-            using (var stream = new FileStream(filename, FileMode.Create))
-            {
-                var encoder = new TiffBitmapEncoder() { Compression = TiffCompressOption.Lzw };
-                BitmapFrame bmpFrame = BitmapFrame.Create(ImgDst.Bmp, null, null, null);
-                encoder.Frames.Add(bmpFrame);
-                encoder.Save(stream);
-            }
-        }
+        public void SaveImage(string filename) => ImgDst.SaveImage(filename);
         public void AddOpcode(OpcodeId id)
         {
             var header = new OpcodeHeader() { id = id };
@@ -92,9 +83,13 @@ namespace DngOpcodesEditor
         {
             Debug.WriteLine("ApplyOpcodes started");
             var sw = Stopwatch.StartNew();
+            if (ImgSrc == null)
+                return;
             ImgDst = ImgSrc.Clone();
             foreach (var opcode in Opcodes)
             {
+                if (!opcode.Enabled)
+                    continue;
                 switch (opcode.header.id)
                 {
                     case OpcodeId.WarpRectilinear:
@@ -105,6 +100,9 @@ namespace DngOpcodesEditor
                         break;
                     case OpcodeId.TrimBounds:
                         OpcodesImplementation.TrimBounds(ImgDst, opcode as OpcodeTrimBounds);
+                        break;
+                    case OpcodeId.GainMap:
+                        OpcodesImplementation.GainMap(ImgDst, opcode as OpcodeGainMap);
                         break;
                     default:
                         Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped");
@@ -124,10 +122,10 @@ namespace DngOpcodesEditor
         }
         public void ImportDng(string filename)
         {
-            // Import OpcodeList1, OpcodeList2, OpcodeList3
-            //for (int listIndex = 1; listIndex < 4; listIndex++)
+            // Import OpcodeList2 and OpcodeList3
+            for (int listIndex = 2; listIndex < 4; listIndex++)
             {
-                int listIndex = 3;  // TODO: Add support for additional lists
+                //int listIndex = 3;  // TODO: Add support for additional lists
                 var ms = new MemoryStream();
                 // -IFD0:OpcodeList
                 var exifProcess = Process.Start(new ProcessStartInfo("exiftool.exe", $"-b -OpcodeList{listIndex} \"{filename}\"")
@@ -141,6 +139,7 @@ namespace DngOpcodesEditor
                 {
                     foreach (Opcode opcode in ImportBin(bytes))
                     {
+                        opcode.ListIndex = listIndex;
                         Opcodes.Add(opcode);
                     }
                     SelectedOpcode = Opcodes.Last();

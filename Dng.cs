@@ -20,6 +20,7 @@ namespace DngOpcodesEditor
         TrimBounds = 6,
         MapTable = 7,
         MapPolynomial = 8,
+        [Description("Multiplies a specified area and plane range of an image by a gain map")]
         GainMap = 9,
         DeltaPerRow = 10,
         DeltaPerColumn = 11,
@@ -51,9 +52,14 @@ namespace DngOpcodesEditor
         [ObservableProperty]
         int arrayIndex;
     }
-    public class Opcode : ObservableObject
+    public partial class Opcode : ObservableObject
     {
         public OpcodeHeader header;
+        // UI stuff
+        [ObservableProperty]
+        int listIndex = 3;
+        [ObservableProperty]
+        bool enabled = true;
         public List<OpcodeParameter> Parameters
         {
             get
@@ -121,8 +127,9 @@ namespace DngOpcodesEditor
                 }
                 return result;
             }
-        }
+        }        
         public override string ToString() => header.id.ToString();
+        // End UI stuff
     }
     public class OpcodeHeader
     {
@@ -154,5 +161,24 @@ namespace DngOpcodesEditor
         public UInt32 left;
         public UInt32 bottom;
         public UInt32 right;
+    }
+    public class OpcodeGainMap : Opcode
+    {
+        public UInt32 top;
+        public UInt32 left;
+        public UInt32 bottom;
+        public UInt32 right;
+        public UInt32 plane;
+        public UInt32 planes;
+        public UInt32 rowPitch;
+        public UInt32 colPitch;
+        public UInt32 mapPointsV;
+        public UInt32 mapPointsH;
+        public double mapSpacingV;
+        public double mapSpacingH;
+        public double mapOriginV;
+        public double mapOriginH;
+        public UInt32 mapPlanes;
+        public float[] mapGains;
     }
 }

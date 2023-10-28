@@ -11,6 +11,7 @@ Supported opcodes:
 - FixVignetteRadial
 - WarpRectilinear (single plane only, based on the Brown-Conrady distortion model)
 - TrimBounds
+- GainMap (preliminary implementation, not complete or correct)
 
 Required Software:
 
@@ -29,3 +30,4 @@ Notes:
 - Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 in some cases
 - TrimBounds may not be well supported by most RAW processors
 - FixVignetteRadial may require adjusting the strenght in some RAW processors
+- GainMap requires more testing

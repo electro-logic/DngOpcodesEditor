@@ -11,14 +11,13 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition />
+            <RowDefinition Height="220" />
             <RowDefinition Height="10"/>
-            <RowDefinition Height="2*"/>
+            <RowDefinition Height="*"/>
             <RowDefinition Height="10"/>
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
-        <DataGrid Grid.Column="2" ItemsSource="{Binding SelectedOpcode.Parameters}" AutoGenerateColumns="False" Grid.Row="1" 
+        <DataGrid Grid.Column="2" ItemsSource="{Binding SelectedOpcode.Parameters}" AutoGenerateColumns="False" 
                   CanUserAddRows="False" CanUserDeleteRows="False">
             <DataGrid.Columns>
                 <DataGridTextColumn IsReadOnly="True" Header="Parameter" Binding="{Binding Description}" />
@@ -34,13 +33,27 @@
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
-        <Grid Grid.Row="1">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <ListBox ItemsSource="{Binding Opcodes}" SelectedItem="{Binding SelectedOpcode, Mode=TwoWay}" />
+            <ListView ItemsSource="{Binding Opcodes}" SelectedItem="{Binding SelectedOpcode}">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Enabled">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Enabled}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="OpcodeID" DisplayMemberBinding="{Binding}" />
+                        <GridViewColumn Header="OpcodeList" DisplayMemberBinding="{Binding ListIndex}" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
             <StackPanel Grid.Column="2">
                 <StackPanel.Resources>
                     <Style TargetType="Button">
@@ -55,17 +68,16 @@
                 <!--<Button Content="Move Up" Click="btnMoveUp_Click" />
                 <Button Content="Move Down" Click="btnMoveDown_Click" />-->
                 <Button Content="Delete Opcode" Click="btnDeleteOpcode_Click" />
+                <Button Content="Clear" Click="btnClear_Click" />
                 <!--<ComboBox x:Name="cbOpcodesIDs" SelectedIndex="0" />
                 <Button Content="Add Opcode" Click="btnAddOpcode_Click" />-->
             </StackPanel>
         </Grid>
-        <Image Grid.Row="3" Source="{Binding ImgSrc.Bmp}" />
-        <Button Content="Open Reference Image" Grid.Row="5" Click="btnOpenImage_Click" />
-        <Image Grid.Row="3" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
-        <Button Content="Save Preview Image" Grid.Row="5" Grid.Column="2" Click="btnSaveImage_Click" />
+        <Image Grid.Row="2" Source="{Binding ImgSrc.Bmp}" />
+        <Button Content="Open Reference Image" Grid.Row="4" Click="btnOpenImage_Click" />
+        <Image Grid.Row="2" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
+        <Button Content="Save Preview Image" Grid.Row="4" Grid.Column="2" Click="btnSaveImage_Click" />
         <!--<Button Grid.Column="2" Content="Apply Opcodes" Grid.Row="5" Click="btnApplyOpcodes_Click"/>-->
-        <TextBlock Text="Opcodes List"/>
-        <TextBlock Grid.Column="2" Text="Opcode parameters"/>
-        <GridSplitter Grid.ColumnSpan="3" Grid.Row="2" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
+        <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
     </Grid>
 </Window>
