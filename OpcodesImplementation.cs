@@ -77,8 +77,7 @@ namespace DngOpcodesEditor
                         {
                             // use the last gain map if planes > mapPlanes
                             var gain = BilinearInterpolation(mapGainsPlanes[Math.Min(planeIndex, mapGainsPlanes.Length - 1)], xMap, yMap);
-                            var black = 0;
-                            pixel[planeIndex] = (byte)Math.Clamp(Math.Round((pixel[planeIndex] - black) * gain + black), 0, 255);
+                            pixel[planeIndex] = (byte)Math.Clamp(Math.Round((pixel[planeIndex]) * gain), 0, 255);
                         }
                         img.SetPixelRGB8(x, y, pixel[0], pixel[1], pixel[2]);
                     }

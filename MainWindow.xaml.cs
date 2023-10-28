@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System.Diagnostics;
+using System;
+using System.Windows;
 
 namespace DngOpcodesEditor
 {
@@ -24,7 +26,30 @@ namespace DngOpcodesEditor
         void btnExportDNG_Click(object sender, RoutedEventArgs e) => ViewModel.ExportDNG();
         void btnSaveImage_Click(object sender, RoutedEventArgs e) => ViewModel.SaveImage();
         void btnClear_Click(object sender, RoutedEventArgs e) { ViewModel.Opcodes.Clear(); ViewModel.ApplyOpcodes(); }
+        void Image_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (ViewModel.ImgSrc == null) 
+                return;
 
+            try
+            {
+                var image = sender as System.Windows.Controls.Image;
+                var position = e.GetPosition(image);
+                // Uniform stretching only
+                var scaleRatio = image.Source.Width / image.ActualWidth;
+                int x = (int)Math.Floor(position.X * scaleRatio);
+                int y = (int)Math.Floor(position.Y * scaleRatio);
+                tbPosition.Text = $"X: {x} Y: {y}";
+                var src = ViewModel.ImgSrc.GetPixelRGB8(x, y);
+                var dst = ViewModel.ImgDst.GetPixelRGB8(x, y);
+                tbInfo.Text = $"{src[0].ToString("D3")} {src[1].ToString("D3")} {src[2].ToString("D3")} - {dst[0].ToString("D3")} {dst[1].ToString("D3")} {dst[2].ToString("D3")}";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+        }
+        void Image_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => tbInfo.Text = string.Empty;        
         /*
         void btnMoveUp_Click(object sender, RoutedEventArgs e) { }
         void btnMoveDown_Click(object sender, RoutedEventArgs e) { }
