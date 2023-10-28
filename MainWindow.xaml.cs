@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System;
 using System.Windows;
+using System.IO;
 
 namespace DngOpcodesEditor
 {
@@ -11,9 +12,9 @@ namespace DngOpcodesEditor
             InitializeComponent();
             //cbOpcodesIDs.ItemsSource = Enum.GetValues(typeof(OpcodeId));
             ViewModel.OpenImage(@"Samples\grid.tiff");
-            ViewModel.ImportBin(@"Samples\FixVignetteRadial.bin");
+            //ViewModel.ImportBin(@"Samples\FixVignetteRadial.bin");
             ViewModel.ImportBin(@"Samples\WarpRectilinear.bin");            
-            ViewModel.ImportBin(@"Samples\GainMap.bin");
+            //ViewModel.ImportBin(@"Samples\GainMap.bin");
             //ViewModel.ImportBin(@"Samples\TrimsBound.bin");
             ViewModel.ApplyOpcodes();
         }
@@ -28,7 +29,7 @@ namespace DngOpcodesEditor
         void btnClear_Click(object sender, RoutedEventArgs e) { ViewModel.Opcodes.Clear(); ViewModel.ApplyOpcodes(); }
         void Image_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (ViewModel.ImgSrc == null) 
+            if (ViewModel.ImgSrc == null)
                 return;
 
             try
@@ -49,7 +50,35 @@ namespace DngOpcodesEditor
                 Debug.WriteLine(ex);
             }
         }
-        void Image_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => tbInfo.Text = string.Empty;        
+        void Image_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => tbInfo.Text = string.Empty;
+        void Window_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length > 0)
+                {
+                    foreach (string file in files)
+                    {
+                        switch (Path.GetExtension(file).ToLower())
+                        {
+                            case ".bin":
+                                ViewModel.ImportBin(file);
+                                break;
+                            case ".dng":
+                                ViewModel.ImportDng(file);
+                                break;
+                            default:
+                                ViewModel.OpenImage(files[0]);
+                                break;
+                        }
+                    }
+                    ViewModel.ApplyOpcodes();
+                }
+            }
+        }
+        void CheckBox_Checked(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
+        void CheckBox_Unchecked(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
         /*
         void btnMoveUp_Click(object sender, RoutedEventArgs e) { }
         void btnMoveDown_Click(object sender, RoutedEventArgs e) { }

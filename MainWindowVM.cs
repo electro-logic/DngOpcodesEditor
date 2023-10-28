@@ -6,6 +6,9 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
 namespace DngOpcodesEditor
@@ -20,8 +23,12 @@ namespace DngOpcodesEditor
         Opcode _selectedOpcode;
         [ObservableProperty]
         Image _imgSrc, _imgDst;
+        [ObservableProperty]
+        bool _linearInput;
+        
         public MainWindowVM()
         {
+            SetWindowTitle();
             _opcodes.CollectionChanged += (s, e) =>
             {
                 if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
@@ -37,9 +44,19 @@ namespace DngOpcodesEditor
                 }
             };
         }
+        public void SetWindowTitle(string filename = "")
+        {
+
+            App.Current.MainWindow.Title = $"DNG Opcodes Editor v{Assembly.GetExecutingAssembly().GetName().Version.ToString()}";
+            if (!string.IsNullOrWhiteSpace(filename))
+            {
+                App.Current.MainWindow.Title += $" - {Path.GetFileName(filename)}";
+            }
+        }
         public void OpenImage()
         {
             var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*" };
+            dialog.InitialDirectory = Environment.CurrentDirectory;
             if (dialog.ShowDialog() == true)
             {
                 OpenImage(dialog.FileName);
@@ -49,6 +66,7 @@ namespace DngOpcodesEditor
         {
             ImgSrc = new Image(filename);
             ImgDst = ImgSrc.Clone();
+            SetWindowTitle(filename);
         }
         public void SaveImage()
         {
@@ -79,42 +97,10 @@ namespace DngOpcodesEditor
                     break;
             }
         }
-        public void ApplyOpcodes()
-        {
-            Debug.WriteLine("ApplyOpcodes started");
-            var sw = Stopwatch.StartNew();
-            if (ImgSrc == null)
-                return;
-            ImgDst = ImgSrc.Clone();
-            foreach (var opcode in Opcodes)
-            {
-                if (!opcode.Enabled)
-                    continue;
-                switch (opcode.header.id)
-                {
-                    case OpcodeId.WarpRectilinear:
-                        OpcodesImplementation.WarpRectilinear(ImgDst, opcode as OpcodeWarpRectilinear);
-                        break;
-                    case OpcodeId.FixVignetteRadial:
-                        OpcodesImplementation.FixVignetteRadial(ImgDst, opcode as OpcodeFixVignetteRadial);
-                        break;
-                    case OpcodeId.TrimBounds:
-                        OpcodesImplementation.TrimBounds(ImgDst, opcode as OpcodeTrimBounds);
-                        break;
-                    case OpcodeId.GainMap:
-                        OpcodesImplementation.GainMap(ImgDst, opcode as OpcodeGainMap);
-                        break;
-                    default:
-                        Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped");
-                        continue;
-                }
-            }
-            ImgDst.Update(); 
-            Debug.WriteLine($"ApplyOpcodes executed in {sw.ElapsedMilliseconds}ms");
-        }
         public void ImportDng()
         {
             var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*" };
+            dialog.InitialDirectory = Environment.CurrentDirectory;
             if (dialog.ShowDialog() == true)
             {
                 ImportDng(dialog.FileName);
@@ -198,6 +184,56 @@ namespace DngOpcodesEditor
         Opcode[] ImportBin(byte[] binaryData)
         {
             return new OpcodesReader().ReadOpcodeList(binaryData);
+        }
+        public void ApplyOpcodes()
+        {
+            Debug.WriteLine("ApplyOpcodes started");
+            var sw = Stopwatch.StartNew();
+
+            if (ImgSrc == null)
+                return;
+
+            Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+            ImgDst = ImgSrc.Clone();
+            foreach (var opcode in Opcodes)
+            {
+                if (!opcode.Enabled)
+                    continue;
+                switch (opcode.header.id)
+                {
+                    case OpcodeId.WarpRectilinear:
+                        OpcodesImplementation.WarpRectilinear(ImgDst, opcode as OpcodeWarpRectilinear);
+                        break;
+                    case OpcodeId.FixVignetteRadial:
+                        OpcodesImplementation.FixVignetteRadial(ImgDst, opcode as OpcodeFixVignetteRadial);
+                        break;
+                    case OpcodeId.TrimBounds:
+                        OpcodesImplementation.TrimBounds(ImgDst, opcode as OpcodeTrimBounds);
+                        break;
+                    case OpcodeId.GainMap:
+                        OpcodesImplementation.GainMap(ImgDst, opcode as OpcodeGainMap);
+                        break;
+                    default:
+                        Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped");
+                        continue;
+                }
+            }
+            if (LinearInput)
+            {
+                var swGamma = Stopwatch.StartNew();
+                // Apply gamma encoding
+                Parallel.For(0, ImgDst.Height, (y) =>
+                {
+                    for (int x = 0; x < ImgDst.Width; x++)
+                    {
+                        ImgDst.ChangePixel8(x, y, (b => MathF.Pow(b / 255.0f, 1.0f / 2.2f) * 255.0f));
+                    }
+                });
+                Debug.WriteLine($"\tGamma Encoding executed in {swGamma.ElapsedMilliseconds}ms");
+            }
+            ImgDst.Update();
+            Debug.WriteLine($"ApplyOpcodes executed in {sw.ElapsedMilliseconds}ms");
+            Mouse.OverrideCursor = System.Windows.Input.Cursors.Arrow;
         }
     }
 }

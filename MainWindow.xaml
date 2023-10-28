@@ -1,7 +1,7 @@
 ﻿<Window x:Class="DngOpcodesEditor.MainWindow" xmlns:local="clr-namespace:DngOpcodesEditor"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" 
-        WindowStartupLocation="CenterScreen" WindowState="Normal" SnapsToDevicePixels="True"
-        Title="DNG Opcodes Editor v0.04 by Leonardo @ electro-logic.blogspot.com" Width="1200" Height="768" Background="#FFDEDEDE">
+        WindowStartupLocation="CenterScreen" WindowState="Normal" SnapsToDevicePixels="True" AllowDrop="True" Drop="Window_Drop"
+        Title="" Width="1200" Height="768" Background="#FFDEDEDE">
     <Window.DataContext>
         <local:MainWindowVM x:Name="ViewModel" />
     </Window.DataContext>
@@ -90,6 +90,7 @@
         <!--<Button Grid.Column="2" Content="Apply Opcodes" Grid.Row="5" Click="btnApplyOpcodes_Click"/>-->
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
         <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Center" d:Text="Info" />
-        <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Left" d:Text="Position" />
+        <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Right" d:Text="Position" />
+        <CheckBox IsChecked="{Binding LinearInput}" Grid.Row="4" Content="Reference Image is Linear" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" />
     </Grid>
 </Window>

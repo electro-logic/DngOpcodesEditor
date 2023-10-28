@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -42,6 +43,14 @@ namespace DngOpcodesEditor
             Int32 value = b | (g << 8) | (r << 16) | (a << 24);
             SetPixel(x, y, value);
         }
+        public void ChangePixel8(int x, int y, Func<byte, float> f)
+        {
+            var pixel = GetPixelRGB8(x, y);
+            byte r = (byte)Math.Clamp(MathF.Round(f(pixel[0])), 0.0f, 255.0f);
+            byte g = (byte)Math.Clamp(MathF.Round(f(pixel[1])), 0.0f, 255.0f);
+            byte b = (byte)Math.Clamp(MathF.Round(f(pixel[2])), 0.0f, 255.0f);
+            SetPixelRGB8(x, y, r, g, b);
+        }
         public Image Clone()
         {
             var clone = new Image();
@@ -66,5 +75,23 @@ namespace DngOpcodesEditor
                 encoder.Save(stream);
             }
         }
+        // Save a float image for debugging purposes only
+        public static void SaveFloatImage(float[] floatImage, int w, int h, string filename)
+        {
+            // Scale values from [Min,Max] to [0,255]
+            var min = floatImage.Min();
+            var max = floatImage.Max();
+            var gray8 = floatImage.Select(f => (byte)Math.Round((f - min) / max * 255.0f)).ToArray();
+            var bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Gray8, null);
+            bmp.WritePixels(new System.Windows.Int32Rect(0, 0, w, h), gray8, w, 0);
+            using (var stream = new FileStream(filename, FileMode.Create))
+            {
+                var encoder = new TiffBitmapEncoder() { Compression = TiffCompressOption.Lzw };
+                BitmapFrame bmpFrame = BitmapFrame.Create(bmp, null, null, null);
+                encoder.Frames.Add(bmpFrame);
+                encoder.Save(stream);
+            }
+        }
+
     }
 }

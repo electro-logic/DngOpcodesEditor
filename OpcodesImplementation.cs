@@ -1,62 +1,27 @@
 ﻿using System;
-using System.Linq;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace DngOpcodesEditor
-{
+{   
     public static class OpcodesImplementation
     {
-        // Convert a row-major 1d array to a 2d array
-        static float[,] ArrayToArray2D(float[] array, int width)
-        {
-            int height = array.Length / width;
-            var newArray = new float[width, height];
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    newArray[x, y] = array[x + y * width];
-                }
-            }
-            return newArray;
-        }
-        static double BilinearInterpolation(float[,] array, double x, double y)
-        {
-            int x1 = (int)x;
-            int y1 = (int)y;
-            int x2 = Math.Min(array.GetLength(0) - 1, x1 + 1);
-            int y2 = Math.Min(array.GetLength(1) - 1, y1 + 1);
-
-            if (x2 == x1)
-                x1--;
-            if (y2 == y1)
-                y1--;
-
-            float q11 = array[x1, y1];
-            float q21 = array[x2, y1];
-            float q12 = array[x1, y2];
-            float q22 = array[x2, y2];
-            double wd = (x2 - x1) * (y2 - y1);
-            double w11 = (x2 - x) * (y2 - y) / wd;
-            double w12 = (x2 - x) * (y - y1) / wd;
-            double w21 = (x - x1) * (y2 - y) / wd;
-            double w22 = (x - x1) * (y - y1) / wd;
-            double result = w11 * q11 + w12 * q12 + w21 * q21 + w22 * q22;
-            return result;
-        }
+        // Multiplies a specified area and plane range of an image by a gain map
         public static void GainMap(Image img, OpcodeGainMap p)
         {
             var sw = Stopwatch.StartNew();
-
             // Split p.mapGains by p.planes and transform to a 2D array
             // Ex. float[3072] - > 3x float[32,32]
             var mapGainsPlanes = new float[p.planes][,];
             for (int planeIndex = 0; planeIndex < p.planes; planeIndex++)
             {
-                mapGainsPlanes[planeIndex] = ArrayToArray2D(p.mapGains.Where((f, i) => i % p.planes == planeIndex).ToArray(), (int)p.mapPointsH);
+                var planeChannel = p.mapGains.Where((f, i) => i % p.planes == planeIndex).ToArray();
+                //Image.SaveFloatImage(planeChannel, (int)p.mapPointsH, (int)p.mapPointsV, $"gainMap{planeIndex}.tiff"); 
+                mapGainsPlanes[planeIndex] = MathHelper.ArrayToArray2D(planeChannel, (int)p.mapPointsH);
             }
             Parallel.For(0, img.Height, (y) =>
             //for (int y = 0; y < img.Height; y++)
@@ -73,10 +38,11 @@ namespace DngOpcodesEditor
                         double xMap = Math.Min((xRel - p.mapOriginH) / p.mapSpacingH, p.mapPointsH - 1.0);
                         double yMap = Math.Min((yRel - p.mapOriginV) / p.mapSpacingV, p.mapPointsV - 1.0);
                         var pixel = img.GetPixelRGB8(x, y);
-                        for (int planeIndex = 0; planeIndex < 3; planeIndex++)
+                        // apply the gain from plane p.plane
+                        for (uint planeIndex = p.plane; planeIndex < 3; planeIndex++)
                         {
-                            // use the last gain map if planes > mapPlanes
-                            var gain = BilinearInterpolation(mapGainsPlanes[Math.Min(planeIndex, mapGainsPlanes.Length - 1)], xMap, yMap);
+                            // use the last gain map if p.planes > p.mapPlanes
+                            var gain = MathHelper.BilinearInterpolation(mapGainsPlanes[Math.Min(planeIndex, mapGainsPlanes.Length - 1)], xMap, yMap);
                             pixel[planeIndex] = (byte)Math.Clamp(Math.Round((pixel[planeIndex]) * gain), 0, 255);
                         }
                         img.SetPixelRGB8(x, y, pixel[0], pixel[1], pixel[2]);
@@ -91,6 +57,7 @@ namespace DngOpcodesEditor
             img.Update();
             Debug.WriteLine($"\tGainMap executed in {sw.ElapsedMilliseconds}ms");
         }
+        // Trims the image to the rectangle specified by Top, Left, Bottom, and Right
         public static void TrimBounds(Image img, OpcodeTrimBounds p)
         {
             // In this implementation we keep the original size and we only mask trimmed pixels
@@ -105,6 +72,7 @@ namespace DngOpcodesEditor
                 }
             });
         }
+        // Applies a gain function to an image and can be used to correct vignetting
         public static void FixVignetteRadial(Image img, OpcodeFixVignetteRadial p)
         {
             var sw = Stopwatch.StartNew();
@@ -142,6 +110,9 @@ namespace DngOpcodesEditor
             });
             Debug.WriteLine($"\tFixVignetteRadial executed in {sw.ElapsedMilliseconds}ms");
         }
+        // Applies a warp to an image and can be used to correct geometric distortion and
+        // lateral (transverse) chromatic aberration for rectilinear lenses.
+        // The warp function supports both radial and tangential distortion correction.
         public static void WarpRectilinear(Image img, OpcodeWarpRectilinear p)
         {
             // TODO: resampling kernel (ex. cubic spline)
