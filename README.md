@@ -42,9 +42,11 @@ dcraw_emu.exe -T -4 -o 0 input.DNG
 
 The command produces a demosaiced linear TIFF image (16 bit) that can be opened as a Reference Image.
 
-**- Why the GainMap opcode produces too bright results?**
+**- Why the preview is too bright/dark?**
 
-Because the opcode is designed to work before the gamma encoding. Please ensure that the reference image is Linear and that the checkbox "Reference Image is Linear" is checked
+Because opcodes are designed to work before the gamma encoding.
+If the reference image is gamma encoded check the "Decode Input Gamma" option, uncheck otherwise.
+The "Encode Output Gamma" option should be always checked to properly display the preview image.
 
 **- Why I can't see the preview image I saved?**
 

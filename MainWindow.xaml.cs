@@ -58,6 +58,7 @@ namespace DngOpcodesEditor
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
                 if (files.Length > 0)
                 {
+                    ViewModel.Opcodes.Clear();
                     foreach (string file in files)
                     {
                         switch (Path.GetExtension(file).ToLower())
@@ -69,7 +70,7 @@ namespace DngOpcodesEditor
                                 ViewModel.ImportDng(file);
                                 break;
                             default:
-                                ViewModel.OpenImage(files[0]);
+                                ViewModel.OpenImage(file);
                                 break;
                         }
                     }

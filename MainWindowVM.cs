@@ -25,9 +25,11 @@ namespace DngOpcodesEditor
         Image _imgSrc, _imgDst;
         [ObservableProperty]
         bool _encodeGamma, _decodeGamma;
-        
+
         public MainWindowVM()
         {
+            _encodeGamma = true;
+            _decodeGamma = true;
             SetWindowTitle();
             _opcodes.CollectionChanged += (s, e) =>
             {
@@ -192,8 +194,8 @@ namespace DngOpcodesEditor
             Debug.WriteLine("ApplyOpcodes started");
             var sw = Stopwatch.StartNew();
 
-            //if (ImgSrc == null)
-            //    return;
+            if (ImgSrc == null)
+                return;
 
             Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
             ImgDst = ImgSrc.Clone();
