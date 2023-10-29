@@ -64,7 +64,9 @@ namespace DngOpcodesEditor
         }
         public void OpenImage(string filename)
         {
-            ImgSrc = new Image(filename);
+            ImgSrc = new Image();
+            int bpp = ImgSrc.Open(filename);
+            LinearInput = bpp > 32 ? true : false;
             ImgDst = ImgSrc.Clone();
             SetWindowTitle(filename);
         }
@@ -190,8 +192,8 @@ namespace DngOpcodesEditor
             Debug.WriteLine("ApplyOpcodes started");
             var sw = Stopwatch.StartNew();
 
-            if (ImgSrc == null)
-                return;
+            //if (ImgSrc == null)
+            //    return;
 
             Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
             ImgDst = ImgSrc.Clone();
@@ -226,7 +228,7 @@ namespace DngOpcodesEditor
                 {
                     for (int x = 0; x < ImgDst.Width; x++)
                     {
-                        ImgDst.ChangePixel8(x, y, (b => MathF.Pow(b / 255.0f, 1.0f / 2.2f) * 255.0f));
+                        ImgDst.ChangeRgb16Pixel(x, y, (pixel => MathF.Pow(pixel / 65535.0f, 1.0f / 2.2f) * 65535.0f));
                     }
                 });
                 Debug.WriteLine($"\tGamma Encoding executed in {swGamma.ElapsedMilliseconds}ms");

@@ -24,7 +24,6 @@ namespace DngOpcodesEditor
                 mapGainsPlanes[planeIndex] = MathHelper.ArrayToArray2D(planeChannel, (int)p.mapPointsH);
             }
             Parallel.For(0, img.Height, (y) =>
-            //for (int y = 0; y < img.Height; y++)
             {
                 for (int x = 0; x < img.Width; x++)
                 {
@@ -37,15 +36,15 @@ namespace DngOpcodesEditor
                         // convert from image [0,1]x[0,1] to array [0,mapPointsH]x[0,mapPointsV]
                         double xMap = Math.Min((xRel - p.mapOriginH) / p.mapSpacingH, p.mapPointsH - 1.0);
                         double yMap = Math.Min((yRel - p.mapOriginV) / p.mapSpacingV, p.mapPointsV - 1.0);
-                        var pixel = img.GetPixelRGB8(x, y);
+                        var pixel = img.GetRgb16Pixel(x, y);
                         // apply the gain from plane p.plane
                         for (uint planeIndex = p.plane; planeIndex < 3; planeIndex++)
                         {
                             // use the last gain map if p.planes > p.mapPlanes
                             var gain = MathHelper.BilinearInterpolation(mapGainsPlanes[Math.Min(planeIndex, mapGainsPlanes.Length - 1)], xMap, yMap);
-                            pixel[planeIndex] = (byte)Math.Clamp(Math.Round((pixel[planeIndex]) * gain), 0, 255);
+                            pixel[planeIndex] = (UInt16)Math.Clamp(Math.Round(pixel[planeIndex] * gain), 0, 65535);
                         }
-                        img.SetPixelRGB8(x, y, pixel[0], pixel[1], pixel[2]);
+                        img.SetRgb16Pixel(x, y, pixel[0], pixel[1], pixel[2]);
                     }
                     else
                     {
@@ -67,7 +66,7 @@ namespace DngOpcodesEditor
                 {
                     if ((x <= p.left) || (x >= p.right) || (y <= p.top) || (y >= p.bottom))
                     {
-                        unchecked { img[x, y] = (Int32)0xFF000000; }
+                        unchecked { img.SetPixel(x, y, 0); }
                     }
                 }
             });
@@ -96,16 +95,7 @@ namespace DngOpcodesEditor
                 {
                     double r = Math.Sqrt(Math.Pow(x - cx, 2) + Math.Pow(y - cy, 2)) / m;
                     double g = 1.0 + k0 * Math.Pow(r, 2) + k1 * Math.Pow(r, 4) + k2 * Math.Pow(r, 6) + k3 * Math.Pow(r, 8) + k4 * Math.Pow(r, 10);
-                    var pixel = img[x, y];
-                    // Unpack / Pack BGRA32
-                    byte pixel_b = (byte)(pixel & 0xFF);
-                    byte pixel_g = (byte)((pixel >> 8) & 0xFF);
-                    byte pixel_r = (byte)((pixel >> 16) & 0xFF);
-                    byte pixel_a = (byte)((pixel >> 24) & 0xFF);
-                    pixel_b = (byte)Math.Clamp(Math.Round(pixel_b * g), 0, 255);
-                    pixel_g = (byte)Math.Clamp(Math.Round(pixel_g * g), 0, 255);
-                    pixel_r = (byte)Math.Clamp(Math.Round(pixel_r * g), 0, 255);
-                    img[x, y] = pixel_b | (pixel_g << 8) | (pixel_r << 16) | (pixel_a << 24);
+                    img.ChangeRgb16Pixel(x, y, pixel => (float)(pixel * g));
                 }
             });
             Debug.WriteLine($"\tFixVignetteRadial executed in {sw.ElapsedMilliseconds}ms");
@@ -138,11 +128,7 @@ namespace DngOpcodesEditor
             double my = Math.Max(Math.Abs(y0 - cy), Math.Abs(y1 - cy));
             double m = Math.Sqrt(mx * mx + my * my);
             // Create a new black image to copy pixels in new positions
-            Int32[] newImg = new Int32[img.Width * img.Height];
-            for (int newImgIndex = 0; newImgIndex < img.Width * img.Height; newImgIndex++)
-            {
-                unchecked { newImg[newImgIndex] = (Int32)0xFF000000; }
-            }
+            var newImg = new UInt64[img.Width * img.Height];
             Parallel.For(0, img.Height, (y) =>
             {
                 for (int x = 0; x < img.Width; x++)
@@ -163,7 +149,7 @@ namespace DngOpcodesEditor
                     }
                 }
             });
-            img._pixels = newImg;
+            img.SetPixels(newImg);
             Debug.WriteLine($"\tWarpRectilinear executed in {sw.ElapsedMilliseconds}ms");
         }
     }

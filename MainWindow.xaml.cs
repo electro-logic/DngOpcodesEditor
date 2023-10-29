@@ -12,7 +12,7 @@ namespace DngOpcodesEditor
             InitializeComponent();
             //cbOpcodesIDs.ItemsSource = Enum.GetValues(typeof(OpcodeId));
             ViewModel.OpenImage(@"Samples\grid.tiff");
-            //ViewModel.ImportBin(@"Samples\FixVignetteRadial.bin");
+            ViewModel.ImportBin(@"Samples\FixVignetteRadial.bin");
             ViewModel.ImportBin(@"Samples\WarpRectilinear.bin");            
             //ViewModel.ImportBin(@"Samples\GainMap.bin");
             //ViewModel.ImportBin(@"Samples\TrimsBound.bin");
@@ -41,8 +41,8 @@ namespace DngOpcodesEditor
                 int x = (int)Math.Floor(position.X * scaleRatio);
                 int y = (int)Math.Floor(position.Y * scaleRatio);
                 tbPosition.Text = $"X: {x} Y: {y}";
-                var src = ViewModel.ImgSrc.GetPixelRGB8(x, y);
-                var dst = ViewModel.ImgDst.GetPixelRGB8(x, y);
+                var src = ViewModel.ImgSrc.GetRgb16Pixel(x, y);
+                var dst = ViewModel.ImgDst.GetRgb16Pixel(x, y);
                 tbInfo.Text = $"{src[0].ToString("D3")} {src[1].ToString("D3")} {src[2].ToString("D3")} - {dst[0].ToString("D3")} {dst[1].ToString("D3")} {dst[2].ToString("D3")}";
             }
             catch (Exception ex)

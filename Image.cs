@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -7,70 +8,56 @@ using System.Windows.Media.Imaging;
 
 namespace DngOpcodesEditor
 {
-    public class Image
+    public partial class Image : ObservableObject
     {
-        public Int32[] _pixels;
+        const int INTERNAL_BPP = 8; // Rgba64 = 64 bit (8 Bytes per pixel)
+        byte[] _pixels;
         int _width, _height;
-        public WriteableBitmap Bmp { get; set; }
         public int Width => _width;
         public int Height => _height;
-        private Image() { }
-        public Image(string filename)
+        WriteableBitmap _bmpRgba64;
+        [ObservableProperty]
+        BitmapSource _bmp;
+        public int Open(string filename)
         {
-            var decoder = BitmapDecoder.Create(new Uri(filename, UriKind.Relative), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+            var decoder = BitmapDecoder.Create(new Uri(filename, UriKind.Relative), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
             var frame = decoder.Frames[0];
-            var bmp = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+            // Convert to 16 bit/channel internal format
+            var bmp = new FormatConvertedBitmap(frame, PixelFormats.Rgba64, null, 0);
             _width = bmp.PixelWidth;
             _height = bmp.PixelHeight;
-            _pixels = new Int32[_width * _height];
-            bmp.CopyPixels(_pixels, _width * 4, 0);
-            Bmp = new WriteableBitmap(bmp);
+            // Copy to a managed byte[]
+            _pixels = new byte[_width * _height * INTERNAL_BPP];
+            bmp.CopyPixels(_pixels, _width * INTERNAL_BPP, 0);
+            _bmpRgba64 = new WriteableBitmap(Width, Height, 96, 96, PixelFormats.Rgba64, null);
+            Update();
+            return frame.Format.BitsPerPixel;
         }
-        public void Update() => Bmp.WritePixels(new Int32Rect(0, 0, _width, _height), _pixels, _width * 4, 0);
-        public Int32 GetPixel(int x, int y) => _pixels[x + y * _width];
-        public byte[] GetPixelRGB8(int x, int y)
+        public void Update()
         {
-            var pixel = GetPixel(x, y);
-            byte b = (byte)(pixel & 0xFF);
-            byte g = (byte)((pixel >> 8) & 0xFF);
-            byte r = (byte)((pixel >> 16) & 0xFF);
-            byte a = (byte)((pixel >> 24) & 0xFF);
-            return new byte[] { r, g, b};
+            //  Convert the internal Rgba64 format to Bgr24 (WPF format)
+            _bmpRgba64.WritePixels(new Int32Rect(0, 0, _width, _height), _pixels, _width * sizeof(UInt64), 0);
+            Bmp = new FormatConvertedBitmap(_bmpRgba64, PixelFormats.Bgr24, null, 0);
         }
-        public void SetPixel(int x, int y, Int32 value) => _pixels[x + y * _width] = value;
-        public void SetPixelRGB8(int x, int y, byte r, byte g, byte b, byte a = 255)
-        {
-            Int32 value = b | (g << 8) | (r << 16) | (a << 24);
-            SetPixel(x, y, value);
-        }
-        public void ChangePixel8(int x, int y, Func<byte, float> f)
-        {
-            var pixel = GetPixelRGB8(x, y);
-            byte r = (byte)Math.Clamp(MathF.Round(f(pixel[0])), 0.0f, 255.0f);
-            byte g = (byte)Math.Clamp(MathF.Round(f(pixel[1])), 0.0f, 255.0f);
-            byte b = (byte)Math.Clamp(MathF.Round(f(pixel[2])), 0.0f, 255.0f);
-            SetPixelRGB8(x, y, r, g, b);
-        }
+        public UInt64 GetPixel(int x, int y) => BitConverter.ToUInt64(_pixels, (x + y * _width) * INTERNAL_BPP);
+        public void SetPixel(int x, int y, UInt64 value) => Buffer.BlockCopy(BitConverter.GetBytes(value), 0, _pixels, (x + y * _width) * INTERNAL_BPP, INTERNAL_BPP);
+        public void SetPixels(UInt64[] pixels) => Buffer.BlockCopy(pixels, 0, _pixels, 0, pixels.Length * sizeof(UInt64));
         public Image Clone()
         {
             var clone = new Image();
-            clone._pixels = (int[])_pixels.Clone();
+            clone._pixels = (byte[])_pixels.Clone();
             clone._width = _width;
             clone._height = _height;
-            clone.Bmp = Bmp.Clone();
+            clone._bmpRgba64 = _bmpRgba64.Clone();
             return clone;
         }
-        public Int32 this[int x, int y]
-        {
-            get { return GetPixel(x, y); }
-            set { SetPixel(x, y, value); }
-        }
+        public UInt64 this[int x, int y] => GetPixel(x, y);
         public void SaveImage(string filename)
         {
             using (var stream = new FileStream(filename, FileMode.Create))
             {
                 var encoder = new TiffBitmapEncoder() { Compression = TiffCompressOption.Lzw };
-                BitmapFrame bmpFrame = BitmapFrame.Create(Bmp, null, null, null);
+                BitmapFrame bmpFrame = BitmapFrame.Create(_bmpRgba64, null, null, null);
                 encoder.Frames.Add(bmpFrame);
                 encoder.Save(stream);
             }
@@ -81,9 +68,9 @@ namespace DngOpcodesEditor
             // Scale values from [Min,Max] to [0,255]
             var min = floatImage.Min();
             var max = floatImage.Max();
-            var gray8 = floatImage.Select(f => (byte)Math.Round((f - min) / max * 255.0f)).ToArray();
-            var bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Gray8, null);
-            bmp.WritePixels(new System.Windows.Int32Rect(0, 0, w, h), gray8, w, 0);
+            var gray16 = floatImage.Select(f => (UInt16)Math.Round((f - min) / max * 65535.0f)).ToArray();
+            var bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Gray16, null);
+            bmp.WritePixels(new Int32Rect(0, 0, w, h), gray16, w, 0);
             using (var stream = new FileStream(filename, FileMode.Create))
             {
                 var encoder = new TiffBitmapEncoder() { Compression = TiffCompressOption.Lzw };
@@ -92,6 +79,23 @@ namespace DngOpcodesEditor
                 encoder.Save(stream);
             }
         }
-
+        public UInt16[] GetRgb16Pixel(int x, int y)
+        {
+            var pixel = GetPixel(x, y);
+            var r = (UInt16)(pixel & 0xFFFF);
+            var g = (UInt16)((pixel >> 16) & 0xFFFF);
+            var b = (UInt16)((pixel >> 32) & 0xFFFF);
+            var a = (UInt16)((pixel >> 48) & 0xFFFF);
+            return new UInt16[] { r, g, b };
+        }
+        public void SetRgb16Pixel(int x, int y, UInt16 r, UInt16 g, UInt16 b, UInt16 a = 65535) => SetPixel(x, y, (UInt64)r | ((UInt64)g << 16) | ((UInt64)b << 32) | ((UInt64)a << 48));
+        public void ChangeRgb16Pixel(int x, int y, Func<UInt16, float> f)
+        {
+            var pixel = GetRgb16Pixel(x, y);
+            var r = (UInt16)Math.Clamp(MathF.Round(f(pixel[0])), 0.0f, 65535.0f);
+            var g = (UInt16)Math.Clamp(MathF.Round(f(pixel[1])), 0.0f, 65535.0f);
+            var b = (UInt16)Math.Clamp(MathF.Round(f(pixel[2])), 0.0f, 65535.0f);
+            SetRgb16Pixel(x, y, r, g, b);
+        }
     }
 }
