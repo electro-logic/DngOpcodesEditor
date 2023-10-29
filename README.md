@@ -25,16 +25,15 @@ Useful links:
 
 Notes:
 
-- This project is not an official DNG Tool.
+- This project is not an official DNG Tool and may not be fully compliant with DNG Specifications.
 - Metadata reading/writing is based on ExifTool. Thank you Phil!
 - Open an issue if you need a specific opcode implemented
-- Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 if SubIFD is not defined.
-- TrimBounds may not be well supported by most RAW processors
-- FixVignetteRadial may require adjusting the strenght in some RAW processors
+- Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 if SubIFD is not defined in your DNG files.
+- FixVignetteRadial may require adjusting the strenght in some RAW processors (ex. Capture One)
 
 F.A.Q:
 
-**Can I open a DNG image?**
+**- Can I open a DNG image?**
 
 No, you can only import Opcodes from a DNG file. To Open a DNG image, the file should be developed first.
 You can develop the file in a minimal way by using the LibRaw utility dcraw_emu with the following command:
@@ -43,6 +42,10 @@ dcraw_emu.exe -T -4 -o 0 input.DNG
 
 The command produces a demosaiced linear TIFF image (16 bit) that can be opened as a Reference Image.
 
-**Why the GainMap opcode produces too bright results?**
+**- Why the GainMap opcode produces too bright results?**
 
 Because the opcode is designed to work before the gamma encoding. Please ensure that the reference image is Linear and that the checkbox "Reference Image is Linear" is checked
+
+**- Why I can't see the preview image I saved?**
+
+Ensure that your image viewer supports 16 bit TIFF files
