@@ -24,7 +24,7 @@ namespace DngOpcodesEditor
         [ObservableProperty]
         Image _imgSrc, _imgDst;
         [ObservableProperty]
-        bool _linearInput;
+        bool _encodeGamma, _decodeGamma;
         
         public MainWindowVM()
         {
@@ -66,7 +66,7 @@ namespace DngOpcodesEditor
         {
             ImgSrc = new Image();
             int bpp = ImgSrc.Open(filename);
-            LinearInput = bpp > 32 ? true : false;
+            EncodeGamma = bpp > 32 ? true : false;
             ImgDst = ImgSrc.Clone();
             SetWindowTitle(filename);
         }
@@ -197,6 +197,19 @@ namespace DngOpcodesEditor
 
             Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
             ImgDst = ImgSrc.Clone();
+            if (DecodeGamma)
+            {
+                var swGamma = Stopwatch.StartNew();
+                // Apply gamma decoding
+                Parallel.For(0, ImgDst.Height, (y) =>
+                {
+                    for (int x = 0; x < ImgDst.Width; x++)
+                    {
+                        ImgDst.ChangeRgb16Pixel(x, y, (pixel => MathF.Pow(pixel / 65535.0f, 2.2f) * 65535.0f));
+                    }
+                });
+                Debug.WriteLine($"\tGamma decoding executed in {swGamma.ElapsedMilliseconds}ms");
+            }
             foreach (var opcode in Opcodes)
             {
                 if (!opcode.Enabled)
@@ -220,7 +233,7 @@ namespace DngOpcodesEditor
                         continue;
                 }
             }
-            if (LinearInput)
+            if (EncodeGamma)
             {
                 var swGamma = Stopwatch.StartNew();
                 // Apply gamma encoding
@@ -231,7 +244,7 @@ namespace DngOpcodesEditor
                         ImgDst.ChangeRgb16Pixel(x, y, (pixel => MathF.Pow(pixel / 65535.0f, 1.0f / 2.2f) * 65535.0f));
                     }
                 });
-                Debug.WriteLine($"\tGamma Encoding executed in {swGamma.ElapsedMilliseconds}ms");
+                Debug.WriteLine($"\tGamma encoding executed in {swGamma.ElapsedMilliseconds}ms");
             }
             ImgDst.Update();
             Debug.WriteLine($"ApplyOpcodes executed in {sw.ElapsedMilliseconds}ms");

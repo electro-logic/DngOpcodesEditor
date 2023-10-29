@@ -91,6 +91,11 @@
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
         <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Center" d:Text="Info" />
         <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Right" d:Text="Position" />
-        <CheckBox IsChecked="{Binding LinearInput}" Grid.Row="4" Content="Reference Image is Linear" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal">
+            <CheckBox IsChecked="{Binding DecodeGamma}" Content="Decode Input Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" />
+            <CheckBox IsChecked="{Binding EncodeGamma}" Content="Encode Output Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" Margin="5,0,0,0" />
+        </StackPanel>
+        
     </Grid>
 </Window>
