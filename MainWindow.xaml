@@ -93,8 +93,8 @@
         <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Right" d:Text="Position" />
 
         <StackPanel Grid.Row="4" Orientation="Horizontal">
-            <CheckBox IsChecked="{Binding DecodeGamma}" Content="Decode Input Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" />
-            <CheckBox IsChecked="{Binding EncodeGamma}" Content="Encode Output Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" Margin="5,0,0,0" />
+            <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" />
+            <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" Margin="5,0,0,0" />
         </StackPanel>
         
     </Grid>

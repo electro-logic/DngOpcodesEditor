@@ -25,11 +25,10 @@ namespace DngOpcodesEditor
         Image _imgSrc, _imgDst;
         [ObservableProperty]
         bool _encodeGamma, _decodeGamma;
-
+        string SAMPLES_DIR = Path.Combine(Environment.CurrentDirectory, "Samples");
         public MainWindowVM()
         {
-            _encodeGamma = true;
-            _decodeGamma = true;
+            EncodeGamma = true;
             SetWindowTitle();
             _opcodes.CollectionChanged += (s, e) =>
             {
@@ -58,7 +57,7 @@ namespace DngOpcodesEditor
         public void OpenImage()
         {
             var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*" };
-            dialog.InitialDirectory = Environment.CurrentDirectory;
+            dialog.InitialDirectory = SAMPLES_DIR;
             if (dialog.ShowDialog() == true)
             {
                 OpenImage(dialog.FileName);
@@ -68,7 +67,7 @@ namespace DngOpcodesEditor
         {
             ImgSrc = new Image();
             int bpp = ImgSrc.Open(filename);
-            EncodeGamma = bpp > 32 ? true : false;
+            DecodeGamma = bpp <= 32 ? true : false;
             ImgDst = ImgSrc.Clone();
             SetWindowTitle(filename);
         }
@@ -104,7 +103,7 @@ namespace DngOpcodesEditor
         public void ImportDng()
         {
             var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*" };
-            dialog.InitialDirectory = Environment.CurrentDirectory;
+            dialog.InitialDirectory = SAMPLES_DIR;
             if (dialog.ShowDialog() == true)
             {
                 ImportDng(dialog.FileName);
@@ -139,7 +138,7 @@ namespace DngOpcodesEditor
         public void ImportBin()
         {
             var dialog = new OpenFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*" };
-            dialog.InitialDirectory = Environment.CurrentDirectory;
+            dialog.InitialDirectory = SAMPLES_DIR;
             if (dialog.ShowDialog() == true)
             {
                 ImportBin(dialog.FileName);
