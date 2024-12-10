@@ -30,6 +30,7 @@ Notes:
 - Open an issue if you need a specific opcode implemented
 - Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 if SubIFD is not defined in your DNG files.
 - FixVignetteRadial may require adjusting the strenght in some RAW processors (ex. Capture One)
+- Perf branch (not merged yet) is using Span and .NET 9 to improve performances (around 40% faster)
 
 F.A.Q:
 
