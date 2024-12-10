@@ -54,7 +54,6 @@ public static class OpcodesImplementation
             }
         });
         img.Update();
-        MessageBox.Show($"\tGainMap executed in {sw.ElapsedMilliseconds}ms");
         Debug.WriteLine($"\tGainMap executed in {sw.ElapsedMilliseconds}ms");
     }
     // Trims the image to the rectangle specified by Top, Left, Bottom, and Right
