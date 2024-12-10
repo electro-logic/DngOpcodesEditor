@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -38,13 +39,12 @@ public static class OpcodesImplementation
                     double yMap = Math.Min((yRel - p.mapOriginV) / p.mapSpacingV, p.mapPointsV - 1.0);
                     var pixel = img.GetRgb16Pixel(x, y);
                     // apply the gain from plane p.plane
-                    for (uint planeIndex = p.plane; planeIndex < 3; planeIndex++)
+                    for (int planeIndex = (int)p.plane; planeIndex < 3; planeIndex++)
                     {
                         // use the last gain map if p.planes > p.mapPlanes
                         var gain = MathHelper.BilinearInterpolation(mapGainsPlanes[Math.Min(planeIndex, mapGainsPlanes.Length - 1)], xMap, yMap);
                         pixel[planeIndex] = (UInt16)Math.Clamp(Math.Round(pixel[planeIndex] * gain), 0, 65535);
                     }
-                    img.SetRgb16Pixel(x, y, pixel[0], pixel[1], pixel[2]);
                 }
                 else
                 {
@@ -54,6 +54,7 @@ public static class OpcodesImplementation
             }
         });
         img.Update();
+        MessageBox.Show($"\tGainMap executed in {sw.ElapsedMilliseconds}ms");
         Debug.WriteLine($"\tGainMap executed in {sw.ElapsedMilliseconds}ms");
     }
     // Trims the image to the rectangle specified by Top, Left, Bottom, and Right
