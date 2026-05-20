@@ -10,6 +10,8 @@ This document tracks every opcode defined by the [DNG 1.7.1 spec](specs/DNG_Spec
 
 Status legend: ✓ supported · ◐ partial (see *Notes*) · ✗ not implemented.
 
+Each opcode lives in its own file under `Core/Opcodes/<Name>.cs` (parts of a single `partial class OpcodesImplementation`). Each file opens with a doc-comment block explaining the opcode's math, parameters, typical OpcodeList placement and approximation notes.
+
 ## Coverage matrix
 
 | ID | Opcode                  | Read | Write | Preview | Notes |
@@ -68,22 +70,27 @@ A practical way to source these:
 
 ## What's *not* yet supported from the DNG colour-rendering stack
 
-The opcode list isn't the only metadata that drives a faithful preview. The colour-rendering pipeline currently honours:
+The opcode list isn't the only metadata that drives a faithful preview. The colour-rendering pipeline currently honours, in pipeline order:
 
-- `BlackLevel` (50714), `WhiteLevel` (50717) — linearisation
-- `CFAPattern` (33422) — bilinear demosaic
-- `AsShotNeutral` (50728) — white balance
-- `ColorMatrix2` (50722, fallback `ColorMatrix1` 50721) — camera → XYZ via `inv(M)` + Bradford D50→D65
-- `BaselineExposure` (50730) — `2^stops` gain
-- `ProfileToneCurve` (50940) — tonal mapping
-- Highlight desaturation when any WB'd channel exceeds 0.95
+1. `BlackLevel` (50714) + `WhiteLevel` (50717) — sample linearisation
+2. `CFAPattern` (33422) — bilinear demosaic
+3. `Orientation` (274) — rotate the image to its EXIF orientation
+4. (OpcodeList1 / 2 / 3 — applied here against camera-native RGB)
+5. `AsShotNeutral` (50728) + `ColorMatrix2` (50722, fallback `ColorMatrix1` 50721) — DNG-spec WB diagonal: `referenceNeutral = M·D50_white`, `D[i] = referenceNeutral[i]/AsShotNeutral[i]`, then `camera→sRGB = XyzToSrgb_D65 · Bradford_D50→D65 · inv(M) · diag(D)` (replaces a previous post-hoc row-normalisation that distorted blues)
+6. Highlight desaturation — blend toward neutral when any WB'd channel exceeds 0.95
+7. `BaselineExposure` (50730) — uniform `2^stops` gain
+8. `ProfileHueSatMap` (50937 + 50939, falls back to 50938) — per-hue (hueShift°, satScale, valScale) tweaks via trilinear HSV interpolation
+9. `ProfileToneCurve` (50940) — per-channel tone curve via 4096-entry LUT
+10. **sRGB OETF** (IEC 61966-2-1, not `pow(c, 1/2.2)`) — display encoding
+11. **TPDF dither** at the 16→8 bit display conversion (WPF preview only; saved 16-bit TIFFs are untouched)
 
 Outstanding (in priority order — see `CHANGELOG.md` and the spec analysis in `docs/specs/`):
 
 1. **`ForwardMatrix1`/`2` (50964 / 50965)** — DNG-spec-preferred camera → XYZ path; behaves better at highlights than `inv(ColorMatrix)` and would further reduce residual colour drift.
-2. **`ProfileHueSatMap`** (50937 / 50938 / 50939 / 51107) — per-hue colour correction in linear-ProPhoto / HSV. DJI Mavic 3 Pro DNGs ship a 18×6×1 table.
-3. **`ProfileLookTable`** (50981 / 50982 / 51108) — "creative look", same math as HueSatMap.
+2. **HueSatMap1 ↔ HueSatMap2 illuminant interpolation** — currently uses Map2 (D65) by default; the spec describes blending based on the AsShotNeutral CCT.
+3. **`ProfileLookTable`** (50981 / 50982 / 51108) — "creative look", same HSV math as HueSatMap but applied later in the pipeline.
 4. **`BaselineExposureOffset`** (51109) — trivial summation with `BaselineExposure`.
 5. **`DefaultBlackRender`** (51110) — chooses between "auto blacks" and the profile's baked-in black point.
 6. **`LinearResponseLimit`** (50734) — bound used to decide where to start highlight recovery; currently hard-coded to 0.95 in `ColorTransform`.
 7. **`LinearizationTable`** (50712) — only relevant when a DNG ships one; none of the bundled samples do.
+8. **`TransferFunction`** (TIFF tag 301) + embedded ICC profiles (tag 34675) — currently the input gamma decode defaults to sRGB EOTF; honouring an explicit per-file curve would handle AdobeRGB / ProPhoto / etc. TIFF inputs correctly.

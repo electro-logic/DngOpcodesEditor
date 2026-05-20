@@ -19,8 +19,9 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 - **Per-opcode enable / disable**, gamma encode/decode toggles, and an "Add Opcode" picker.
 - **Decoupled Core library** — the WPF window is a thin shell on top of a platform-agnostic core.
 - **One-click "Open DNG (image + opcodes)"** — loads the image, clears the current chain, and imports the file's own OpcodeList tags in one go.
-- **Full DNG tonal pipeline** — BlackLevel + WhiteLevel linearisation, AsShotNeutral white balance, ColorMatrix to linear sRGB (with Bradford D50→D65), BaselineExposure gain, highlight desaturation (kills the magenta cast in clipped highlights), and ProfileToneCurve are all applied automatically. Toggleable per file.
+- **Full DNG tonal pipeline** — `BlackLevel` + `WhiteLevel` linearisation, EXIF `Orientation`, `AsShotNeutral` white balance, `ColorMatrix` to linear sRGB via the DNG-spec WB diagonal (`Bradford D50→D65`), `BaselineExposure` 2^stops gain, highlight desaturation (kills the magenta cast in clipped highlights), `ProfileHueSatMap`, `ProfileToneCurve`, then **sRGB OETF** (proper piecewise IEC 61966-2-1, not pow 2.2) — all applied automatically. Toggleable per file.
 - **FHD preview downsample** — large DNGs (e.g. 24 MP) are downsampled to 1920x1080 before the opcode chain runs, so editing stays responsive. A "Process at full resolution" checkbox bypasses the resize when you need the real output.
+- **TPDF-dithered 16→8 display conversion** — no banding in smooth gradients on screen. Toggleable via the "Display Dither" checkbox; saved 16-bit TIFFs are unaffected.
 - **Headless CLI** (`dng-opcodes`) for scripting opcode list / extract / inject / metadata / preview operations without the GUI.
 
 ## Supported opcodes
@@ -29,7 +30,6 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 |----|-------------------------|:----:|:-----:|:-------:|
 | 1  | WarpRectilinear         |  ✓   |   ✓   |    ✓    |
 | 2  | WarpFisheye             |  ✓   |   ✓   |    ✓    |
-
 | 3  | FixVignetteRadial       |  ✓   |   ✓   |    ✓    |
 | 4  | FixBadPixelsConstant    |  ✓   |   ✓   |    ✓    |
 | 5  | FixBadPixelsList        |  ✓   |   ✓   |    ✓    |
@@ -80,8 +80,8 @@ Available commands:
 | `inject`  | `<dng> <input.bin> <list:1\|2\|3>`                     | Replace OpcodeListN in the DNG (modifies the file in place).     |
 | `metadata`| `<file>`                                               | Print common EXIF / DNG tags.                                    |
 | `preview` | `<input.dng\|tiff> <list.bin> <output.tiff>`           | Apply an opcode list to an image and write a 16-bit RGB TIFF.    |
-|           | `[--decode-input-gamma]`                               | Apply a 2.2 gamma decode to the input first.                     |
-|           | `[--no-encode-gamma]`                                  | Skip the final 1/2.2 gamma encode (keep the TIFF linear).        |
+|           | `[--decode-input-gamma]`                               | Apply the sRGB EOTF to the input first (use for gamma-encoded TIFF / PNG sources). |
+|           | `[--no-encode-gamma]`                                  | Skip the final sRGB OETF (keep the TIFF linear).                 |
 |           | `[--raw-colors]`                                       | Skip the DNG colour transform (keep camera-native RGB).          |
 |           | `[--max-dimension N]`                                  | Downsample so the longest side fits within N pixels.             |
 
@@ -94,7 +94,7 @@ Lossless JPEG, LZW and Adobe Deflate / zlib (compression codes 1, 7, 5 and 8 /
 
 | Project                                 | Purpose                                                                                  |
 |-----------------------------------------|------------------------------------------------------------------------------------------|
-| `Core/DngOpcodesEditor.Core.csproj`     | Platform-agnostic library: opcode reader/writer, opcode preview implementations, TIFF/DNG IFD parser, Lossless JPEG / LZW / Deflate decoders, bilinear DNG raw demosaicer, 16-bit RGB TIFF writer. |
+| `Core/DngOpcodesEditor.Core.csproj`     | Platform-agnostic library: opcode reader/writer, one C# file per opcode under `Core/Opcodes/`, TIFF/DNG IFD parser, Lossless JPEG / LZW / Deflate decoders, bilinear DNG raw demosaicer, colour pipeline (`ColorTransform`, `DngColorInfo`, `DngToneCurve`, `ProfileHueSatMap`), 16-bit RGB TIFF writer. |
 | `DngOpcodesEditor.csproj`               | WPF (Windows) GUI front-end.                                                              |
 | `Cli/DngOpcodesEditor.Cli.csproj`       | Headless `dng-opcodes` command-line tool.                                                 |
 | `Tests/DngOpcodesEditor.Tests.csproj`   | xUnit round-trip, decoder and CLI integration tests.                                      |
@@ -115,7 +115,7 @@ The command produces a demosaiced linear TIFF image (16 bit) that can be opened 
 
 ### Why is the preview too bright or too dark?
 
-Opcodes are designed to work on linear, pre-gamma data. If your reference image is gamma-encoded (most 8-bit TIFFs and PNGs), tick **Decode Input Gamma**; leave it unticked for linear input. **Encode Output Gamma** should normally stay ticked so the preview displays correctly on screen.
+Opcodes are designed to work on linear, pre-gamma data. If your reference image is gamma-encoded (most 8-bit TIFFs and PNGs), tick **Decode Input (sRGB)**; leave it unticked for linear input (DNGs are linear). **Encode Output (sRGB)** should normally stay ticked so the preview displays correctly on screen. The curve is the proper IEC 61966-2-1 sRGB transfer function, not a pow-2.2 approximation.
 
 ### Why can't I see the preview image I saved?
 
