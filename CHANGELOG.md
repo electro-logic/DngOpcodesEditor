@@ -7,6 +7,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-20
+
+### Changed
+
+- **Bottom-row UI laid out across three rows** instead of one — the previous single `Auto`-height row had the options checkboxes, the pixel-value info text and the mouse-position text all stacked on top of each other and visibly overlapping once enough checkboxes were present. Now: row 1 = options (5 checkboxes, spans the full window width), row 2 = info / position text, row 3 = Open Reference / Save Preview buttons.
+- **Right-side action stack reorganised** from a 9-row `StackPanel` into a 2-column `Grid` pairing Import/Export by file format. Top row spans both columns for the bold primary `Open DNG (image + opcodes)` action; the rest read Import-on-left / Export-on-right. Roughly half as tall as the previous stack.
+- Renamed `Apply DNG Color Transform` → `DNG Color Transform` (the verb is redundant — it's a checkbox).
+- **Startup reference image is generated programmatically** instead of loading `Samples\grid.tiff` and two demo `.bin` payloads via relative paths. Previously the first-launch UX relied on the process working directory matching the build output dir; anywhere else (fresh clone, deployed binary) silently showed an empty preview. Now a 640×480 graph-paper grid (10×10 cells of 64×48 px, 4-px white gridlines, 20-px dark-grey frame) is synthesised in `MainWindow.BuildReferenceGrid`, and the two demo opcodes (vignette `k0=-0.5, k1=-1.0` to darken corners + a mild Brown–Conrady warp) are constructed inline in `AddDemoOpcodes`.
+- The synthetic grid uses a **radial vignette gradient** for the background (bright at the centre, ~50% at the corners) so the vignette opcode visibly *flattens* / extinguishes the corners instead of producing a subtle halo on a uniform background.
+- `MainWindowVM` exposes a new `LoadReferenceBuffer(buffer, title)` mirror of `OpenImage` that takes a pre-built `PixelBuffer` — used by the new startup path.
+
+### Fixed
+
+- **Reference (left) preview was blank for small images.** `Image.Clone()` copied `_bmpDisplay` but didn't propagate the `[ObservableProperty] Bmp`, so `ImgSrc.Bmp` (which the WPF Image binds to) stayed null after `RebuildWorkingImage`'s small-image branch (`ImgSrc = _originalImage.Clone()`). Large DNGs survived because the resize branch goes through `LoadFromBuffer` which calls `Update()`. The 640×480 synthetic grid hit the bug. Clone now sets `Bmp = _bmpDisplay`.
+- **Startup demo `FixVignetteRadial` was silently skipped** because it was tagged `ListIndex = 2`. The preview pipeline filters out list-2 opcodes (per the DNG spec, those target pre-demosaic CFA data and are baked in by `DngRawReader`). Moved to `ListIndex = 3`.
+
+### Removed
+
+- **Untracked `Samples/*` (4 `.bin` + 5 `.tiff`, ~1.6 MB) and `docs/specs/`** — both are now in `.gitignore`. Sample blobs that were already in `origin/main`'s history (pushed long ago from the upstream `electro-logic/DngOpcodesEditor`) remain accessible via `git log -- Samples/`; no history rewrite was performed. The 88 MB `docs/specs/` commit that had been staged locally was dropped via `git reset --mixed` and never reached `origin`. Latent issue flagged for follow-up: `LzwDecoderTests`, `DeflateDecoderTests` and `OpcodesRoundTripTests` still read fixtures from `AppContext.BaseDirectory/Samples/` — they pass today off stale `Tests/bin/Debug/*` output but will break after `dotnet clean` on a fresh clone. Converting them to embedded test fixtures is the next clean-up.
+
 ## [0.8.9] - 2026-05-20
 
 ### Fixed
