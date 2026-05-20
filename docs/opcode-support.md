@@ -108,3 +108,37 @@ Outstanding (in priority order — see `CHANGELOG.md` for history):
 6. **`LinearResponseLimit`** (50734) — bound used to decide where to start highlight recovery; currently hard-coded to 0.95 in `ColorTransform`.
 7. **`LinearizationTable`** (50712) — only relevant when a DNG ships one; none of the bundled samples do.
 8. **`TransferFunction`** (TIFF tag 301) + embedded ICC profiles (tag 34675) — currently the input gamma decode defaults to sRGB EOTF; honouring an explicit per-file curve would handle AdobeRGB / ProPhoto / etc. TIFF inputs correctly.
+
+## Roadmap — what to tackle next
+
+A broader picture across opcodes, infrastructure, display, and UX. Items are roughly ordered by impact ÷ effort; pick whichever scratches the itch you have.
+
+### Opcode completeness
+
+1. **`WarpRectilinear2` (id 14)** — DNG 1.6+ per-channel rectilinear warp with a different parameterisation than `WarpRectilinear`. Currently we recognise the tag id and round-trip its payload as raw bytes (◐ in the coverage matrix), but there's no parsing into a typed object and no preview implementation. Adobe profiles from recent DNG Converter versions write this. *Need: a sample DNG to validate against, then port the Brown-Conrady-style parsing already done for `WarpRectilinear`.*
+2. **OpcodeList2 on CFA — opcodes beyond `GainMap`.** `DngRawReader` now applies L2 `GainMap` opcodes to the linearised CFA before demosaicing (released in 0.8.9), but the other L2-eligible opcodes (`FixBadPixels{Constant,List}`, `MapTable`, `MapPolynomial`, `Delta{Row,Col}`, `Scale{Row,Col}`) are still skipped at decode with a debug log. None of the bundled samples exercise them, so the right move is to wait for a real-world DNG that does and then mirror the GainMap-on-CFA work.
+3. **Live editing of L2 opcodes affects the preview.** Today, because L2 is baked in during `DngRawReader.Read`, toggling an L2 opcode's `Enabled` flag or changing its parameters in the UI does nothing until you reload the file. Wiring an "L2 dirty → re-decode" path would close this gap — `MainWindowVM` already has `_originalImage`, so it's an extra clone-from-bytes step rather than a full reload.
+
+### Colour pipeline
+
+See the *Outstanding* list above — `ForwardMatrix1/2` is the highest-impact item there: it directly affects highlight rendering on every DNG, not just edge cases.
+
+### Test / build infrastructure
+
+4. **Convert sample fixtures to embedded test resources.** `LzwDecoderTests.OpensLzwCompressedTiffSample`, `DeflateDecoderTests` (`solid64.tiff`) and the four `OpcodesRoundTripTests` `[InlineData]` cases all read from `AppContext.BaseDirectory/Samples/`. Since 0.9.0 untracked `Samples/`, these tests pass only because of stale `Tests/bin/Debug/*` copies surviving from earlier builds — `dotnet clean` followed by a fresh build will cause every one of them to fail. The fix is small: move the four `.bin` payloads + two `.tiff` files into `Tests/Fixtures/` (or similar), mark them `<EmbeddedResource>`, and load via `Assembly.GetManifestResourceStream`. ~12 KB of binary additions to the repo, but they're test-essential, not user-facing samples.
+5. **CI on a Windows runner.** The project is .NET 9 + WPF — Linux GitHub Actions can build `Core/` and run tests, but not the WPF app. A `windows-latest` workflow that does `dotnet build`, `dotnet test` and uploads the WPF binary as a release artefact would catch the kind of test-fragility above on every push.
+
+### Display / colour management
+
+6. **HDR display path on Windows 11.** The pipeline already keeps a 16-bit-per-channel linear buffer all the way through `Image.Update`; the final stop is a TPDF-dithered 16→8 conversion to `Bgr32`. On an HDR-capable monitor with the OS in HDR mode, WPF's compositor accepts a higher-bit-depth surface via `PixelFormats.Rgba128Float` (or `Rgba64`) and the DWM will pipe extended-range values through without tone-mapping. Switching `_bmpDisplay` to a float / 16-bit surface conditionally (e.g. detect via `WindowInteropHelper` + DXGI swap-chain HDR query) would let users see the linear pipeline without the 8-bit display crush. Worth a checkbox + a clear *"HDR monitor required"* tooltip.
+7. **`TransferFunction` + embedded ICC profile parsing for TIFF inputs** (also item #8 in the colour-pipeline list) — currently the only input-gamma options are "treat as linear" or "treat as sRGB". Honouring TIFF tag 301 and tag 34675 would correctly decode AdobeRGB, ProPhoto and the various wide-gamut TIFFs that come out of editing software.
+
+### UX / editor polish
+
+8. **Histogram view.** A small luminance / per-channel histogram of `ImgDst` (under the action buttons or in a new tab) would make the effect of every opcode change obvious — especially exposure and tone curves.
+9. **Side-by-side compare against a reference DNG.** The editor already loads one reference image (left) + one processed (right). A "load reference DNG for comparison" command that puts an *independently developed* image (e.g. an Adobe-rendered TIFF) into the right slot would make rendering-fidelity work much easier.
+10. **Better array-parameter editing.** Opcodes like `WarpRectilinear` (`coefficients[0..5]`) and `GainMap` (the entire `mapGains` array) are tedious to edit one slider at a time. A "load coefficients from text" or "paste JSON" path would help when tracking down a specific bug.
+
+### Performance
+
+11. **SIMD / `Vector<T>` in the hot opcode loops.** The bicubic resampler in `WarpRectilinear` / `WarpFisheye` and the inner channel loops in `GainMap` / `MapPolynomial` / `Scale*` / `Delta*` are all embarrassingly parallel per pixel. The current `Parallel.For` over rows uses one float multiply-add per channel — switching to `Vector256<float>` or `System.Numerics.Vector<float>` would 4–8× the throughput on those stages. Worth doing *after* the test fixtures are bulletproof (item 4) so the perf work doesn't risk silent regressions.
