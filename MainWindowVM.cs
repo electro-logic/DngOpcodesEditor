@@ -34,7 +34,26 @@ public partial class MainWindowVM : ObservableObject
     [ObservableProperty]
     bool _processAtFullResolution;
     public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
-    readonly string SAMPLES_DIR = Path.Combine(AppContext.BaseDirectory, "Samples");
+    // Open dialogs start here. Prefer the project's source Samples folder so
+    // freshly-added test images are discoverable without copying to the bin
+    // output; fall back to the bin's linked Samples copy for deployed builds.
+    readonly string SAMPLES_DIR = ResolveSamplesDir();
+    static string ResolveSamplesDir()
+    {
+        // 1. Current working directory (set by `dotnet run` / Visual Studio to the project root).
+        var cwd = Path.Combine(Environment.CurrentDirectory, "Samples");
+        if (Directory.Exists(cwd)) return cwd;
+        // 2. Walk up from the binary location until we find the .csproj.
+        var dir = AppContext.BaseDirectory;
+        for (int i = 0; i < 8 && !string.IsNullOrEmpty(dir); i++)
+        {
+            if (File.Exists(Path.Combine(dir, "DngOpcodesEditor.csproj")))
+                return Path.Combine(dir, "Samples");
+            dir = Path.GetDirectoryName(dir);
+        }
+        // 3. Last resort: the linked copy in the bin output.
+        return Path.Combine(AppContext.BaseDirectory, "Samples");
+    }
     // Working previews are downsampled to at most this size unless
     // ProcessAtFullResolution is set, so editing 24 MP DNGs stays snappy.
     const int MaxPreviewWidth = 1920;

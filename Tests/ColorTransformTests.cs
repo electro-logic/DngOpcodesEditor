@@ -50,6 +50,26 @@ public class ColorTransformTests
     }
 
     [Fact]
+    public void BaselineExposureBrightensTheMatrixByTwoPowStops()
+    {
+        var neutral = new double[] { 0.42899, 1.0, 0.540726 };
+        var matrix = new double[,]
+        {
+            { 0.8575, -0.3219, -0.0868 },
+            { -0.3351, 1.1451, 0.1593 },
+            { 0.0207, 0.0468, 0.4876 },
+        };
+        var noBoost = ColorTransform.BuildCameraToSrgb(neutral, matrix);
+        var withBoost = ColorTransform.BuildCameraToSrgb(neutral, matrix, baselineExposureStops: 0.86);
+
+        // Every cell should be brighter by exactly 2^0.86 ≈ 1.815.
+        double expectedScale = Math.Pow(2, 0.86);
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++)
+                Assert.Equal(noBoost[r, c] * expectedScale, withBoost[r, c], 6);
+    }
+
+    [Fact]
     public void BuiltCameraToSrgbMapsAsShotWhiteToWhite()
     {
         // With the DJI Mavic 3 Pro Hasselblad matrix + AsShotNeutral, a

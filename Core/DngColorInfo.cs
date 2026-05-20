@@ -9,7 +9,10 @@ public class DngColorInfo
 {
     public double[] AsShotNeutral { get; init; }
     public double[,] ColorMatrix { get; init; }
-    // Pre-built camera-native-RGB -> linear-sRGB matrix.
+    // DNG tag 50730 — recommended additional exposure adjustment in stops.
+    public double BaselineExposure { get; init; }
+    // Pre-built camera-native-RGB -> linear-sRGB matrix (white-balance
+    // + colour matrix + baseline exposure all baked in).
     public double[,] CameraToSrgb { get; init; }
 
     // Reads the relevant tags. Returns null if the file isn't a TIFF / DNG
@@ -21,6 +24,7 @@ public class DngColorInfo
             var (isLE, firstIfd) = TiffFile.ReadHeader(tiff);
             int neutralEntry = -1;
             int matrixEntry = -1;
+            int baselineEntry = -1;
             foreach (var ifd in TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd))
             {
                 if (neutralEntry < 0)
@@ -28,7 +32,9 @@ public class DngColorInfo
                 // Prefer ColorMatrix2 (D65); fall back to ColorMatrix1 (Standard A).
                 if (matrixEntry < 0)
                     matrixEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50722);
-                if (neutralEntry >= 0 && matrixEntry >= 0) break;
+                if (baselineEntry < 0)
+                    baselineEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50730);
+                if (neutralEntry >= 0 && matrixEntry >= 0 && baselineEntry >= 0) break;
             }
             if (matrixEntry < 0)
             {
@@ -47,11 +53,18 @@ public class DngColorInfo
                 return null;
             var matrix = new double[3, 3];
             for (int i = 0; i < 9; i++) matrix[i / 3, i % 3] = matrixFlat[i];
+            double baseline = 0;
+            if (baselineEntry >= 0)
+            {
+                var v = TiffFile.ReadEntryAsDoubleArray(tiff, isLE, baselineEntry);
+                if (v.Length > 0) baseline = v[0];
+            }
             return new DngColorInfo
             {
                 AsShotNeutral = neutral,
                 ColorMatrix = matrix,
-                CameraToSrgb = ColorTransform.BuildCameraToSrgb(neutral, matrix),
+                BaselineExposure = baseline,
+                CameraToSrgb = ColorTransform.BuildCameraToSrgb(neutral, matrix, baseline),
             };
         }
         catch

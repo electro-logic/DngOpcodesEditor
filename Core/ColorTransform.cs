@@ -38,8 +38,11 @@ public static class ColorTransform
     };
 
     // Builds the 3x3 matrix that takes a camera-native-RGB triple to
-    // linear sRGB.
-    public static double[,] BuildCameraToSrgb(double[] asShotNeutral, double[,] colorMatrix)
+    // linear sRGB. `baselineExposureStops` (DNG tag 50730) is folded in as a
+    // uniform 2^stops gain so a `BaselineExposure` of +0.86 stops, for
+    // example, brightens the result by ~1.81x — what the DNG spec asks raw
+    // converters to do by default.
+    public static double[,] BuildCameraToSrgb(double[] asShotNeutral, double[,] colorMatrix, double baselineExposureStops = 0.0)
     {
         if (asShotNeutral == null || asShotNeutral.Length < 3)
             throw new ArgumentException("AsShotNeutral must have 3 components.", nameof(asShotNeutral));
@@ -63,6 +66,14 @@ public static class ColorTransform
             if (Math.Abs(white[r]) > 1e-9)
                 for (int c = 0; c < 3; c++)
                     m[r, c] /= white[r];
+        }
+        // BaselineExposure (in stops) applied last as a uniform 2^stops gain.
+        if (baselineExposureStops != 0.0)
+        {
+            double scale = Math.Pow(2.0, baselineExposureStops);
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    m[r, c] *= scale;
         }
         return m;
     }

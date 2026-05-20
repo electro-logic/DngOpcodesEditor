@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `DngColorInfo` now reads `BaselineExposure` (tag 50730) and `ColorTransform.BuildCameraToSrgb` folds it into the camera-to-sRGB matrix as a uniform `2^stops` gain. Drone DNGs that ship with positive baseline exposure (DJI Mavic 3 Pro frames in the test set carry up to +0.86 EV) now preview at the brightness the manufacturer recommends.
+- New test asserting `BaselineExposure` scales every cell of the matrix by `2^stops`.
+
+### Changed
+
+- Open dialogs now start in the **project's source `Samples/` folder** (resolved from the current working directory, then by walking up from the binary location until the `.csproj` is found). Previously they pointed at the bin output's linked copy, so newly-added test images required a rebuild to show up.
+
+### Notes
+
+- The full DNG colour stack the editor applies for the live preview is now: **BlackLevel + WhiteLevel** linearisation (`DngRawReader`) → **bilinear demosaic** → **opcode chain** → **AsShotNeutral white balance + ColorMatrix to sRGB + Bradford D50→D65 + BaselineExposure** (`ColorTransform`) → **gamma encode**. Tone curve and per-illuminant ColorMatrix blending are still future work.
+
 ## [0.8.5] - 2026-05-20
 
 ### Added
