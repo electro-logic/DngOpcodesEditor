@@ -7,6 +7,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- **EXIF Orientation tag (274) is now honoured when opening DNGs.** `PixelBuffer.ApplyOrientation` implements all eight EXIF orientations (identity / mirror / rotate 180 / rotate 90 CW / rotate 90 CCW / two transposes), and `DngRawReader.Read` applies the IFD0 orientation after demosaic. Files in the FiveK test set that were previously stuck in raw-sensor orientation now load correctly: `a0003-NKIM_MG_8178` (90 CW) and `a0074-WP_CRW_0343` (90 CCW) come out portrait, `a0009-kme_372` (180) right-side-up.
+- `Orientation` added to the metadata viewer with friendly value names ("Normal", "Rotate 90 CW", etc.) instead of the numeric code.
+- 5 new tests covering identity / 180 / 90 CW / 90 CCW / out-of-range orientations on a 2×3 test buffer.
+
 ### Fixed
 
 - **Sky / blue channels no longer come out purple** on DJI Phantom 4 and similar DNGs. `ColorTransform.BuildCameraToSrgb` used a post-hoc row normalisation (`m /= white`) to force the scene white to map exactly to `(1, 1, 1)` sRGB. That made the white correct but bent the rest of the gamut — blues in particular ended up with too much red mixed in, so a daylight sky read as magenta/violet. Replaced with the proper DNG-spec WB diagonal: compute `referenceNeutral = ColorMatrix · D50_white`, build `D[i] = referenceNeutral[i] / AsShotNeutral[i]`, and form `camera→sRGB = XyzToSrgb_D65 · Bradford_D50→D65 · inv(ColorMatrix) · diag(D)`. With this formulation, the scene white still maps to ≈`(1, 1, 1)` (within ~0.04% — D65 sRGB rounding) while off-white colours pass through linearly. A 20161129-DJI_0014 sample sky pixel that previously read R≈22k, G≈26k, B≈22k (R ≈ B → magenta) now reads R=22937, G=26290, B=35627 — properly blue-dominant.

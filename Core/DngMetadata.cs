@@ -41,6 +41,7 @@ public static class DngMetadata
         (258, "Bits Per Sample"),
         (259, "Compression"),
         (262, "Photometric Interpretation"),
+        (274, "Orientation"),
         (33422, "CFA Pattern"),
         (50706, "DNG Version"),
         (50708, "Unique Camera Model"),
@@ -162,6 +163,18 @@ public static class DngMetadata
                 "34892" => "LinearRaw",
                 "2" => "RGB",
                 "1" => "BlackIsZero",
+                _ => raw
+            },
+            274 => raw switch        // Orientation
+            {
+                "1" => "Normal",
+                "2" => "Mirror horizontal",
+                "3" => "Rotate 180",
+                "4" => "Mirror vertical",
+                "5" => "Transpose",
+                "6" => "Rotate 90 CW",
+                "7" => "Transverse",
+                "8" => "Rotate 90 CCW",
                 _ => raw
             },
             50778 or 50779 => CalibrationIlluminantName(raw),

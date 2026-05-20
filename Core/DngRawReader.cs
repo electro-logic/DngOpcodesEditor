@@ -23,6 +23,9 @@ public static class DngRawReader
     public static PixelBuffer Read(byte[] tiff)
     {
         var (isLE, firstIfd) = TiffFile.ReadHeader(tiff);
+        // EXIF Orientation lives in IFD0; apply it after demosaic so the
+        // returned buffer is in display-canonical orientation.
+        int orientation = ReadOrientation(tiff, isLE, firstIfd);
         // Walk every IFD once, picking the best image:
         //   1st choice: CFA (32803) or LinearRaw (34892) — the actual raw image.
         //   2nd choice: RGB (2) — useful for already-developed TIFFs and as a
@@ -32,13 +35,21 @@ public static class DngRawReader
         {
             uint photometric = PhotometricOf(tiff, isLE, (int)ifd);
             if (photometric == 32803 || photometric == 34892)
-                return ReadRawFromIfd(tiff, isLE, (int)ifd);
+                return ReadRawFromIfd(tiff, isLE, (int)ifd).ApplyOrientation(orientation);
             if (photometric == 2 && rgbFallback == null)
                 rgbFallback = (int)ifd;
         }
         if (rgbFallback != null)
-            return ReadRawFromIfd(tiff, isLE, rgbFallback.Value);
+            return ReadRawFromIfd(tiff, isLE, rgbFallback.Value).ApplyOrientation(orientation);
         throw new InvalidDataException("No CFA, LinearRaw or RGB image IFD found in the file.");
+    }
+
+    static int ReadOrientation(byte[] tiff, bool isLE, uint firstIfd)
+    {
+        int e = TiffFile.FindEntryPublic(tiff, isLE, (int)firstIfd, 274);
+        if (e < 0) return 1;
+        var v = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, e);
+        return v.Length > 0 ? (int)v[0] : 1;
     }
 
     static uint PhotometricOf(byte[] tiff, bool isLE, int ifd)

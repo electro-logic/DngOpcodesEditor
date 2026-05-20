@@ -48,6 +48,44 @@ public partial class PixelBuffer : ObservableObject
         _height = _height
     };
 
+    // Reorients the buffer according to a TIFF/EXIF Orientation value (1..8).
+    // Returns this buffer (cloned) unchanged for orientation 1 or unknown values.
+    //
+    // EXIF orientation codes:
+    //   1 = identity, 2 = mirror horizontal, 3 = rotate 180,
+    //   4 = mirror vertical, 5 = transpose, 6 = rotate 90 CW,
+    //   7 = transverse, 8 = rotate 270 CW (= 90 CCW)
+    public PixelBuffer ApplyOrientation(int orientation)
+    {
+        if (orientation <= 1 || orientation > 8)
+            return ClonePixels();
+        bool swapDims = orientation >= 5;
+        int newW = swapDims ? _height : _width;
+        int newH = swapDims ? _width : _height;
+        var newPixels = new UInt64[newW * newH];
+        int W = _width, H = _height;
+        System.Threading.Tasks.Parallel.For(0, H, y =>
+        {
+            for (int x = 0; x < W; x++)
+            {
+                int nx, ny;
+                switch (orientation)
+                {
+                    case 2: nx = W - 1 - x; ny = y; break;
+                    case 3: nx = W - 1 - x; ny = H - 1 - y; break;
+                    case 4: nx = x; ny = H - 1 - y; break;
+                    case 5: nx = y; ny = x; break;
+                    case 6: nx = H - 1 - y; ny = x; break;
+                    case 7: nx = H - 1 - y; ny = W - 1 - x; break;
+                    case 8: nx = y; ny = W - 1 - x; break;
+                    default: nx = x; ny = y; break;
+                }
+                newPixels[nx + ny * newW] = _pixels[x + y * W];
+            }
+        });
+        return new PixelBuffer(newPixels, newW, newH);
+    }
+
     // Box-filter downsample so the longest side fits within maxWidth/maxHeight.
     // Returns this buffer (cloned) unchanged if it's already small enough.
     public PixelBuffer Resize(int maxWidth, int maxHeight)
