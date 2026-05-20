@@ -7,6 +7,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- **Three quantisation points across the pipeline were truncating instead of rounding** — small per-pixel errors that accumulated into visible banding when many stages run in sequence. Identified during a precision audit:
+  - **`DngToneCurve.Apply`** did `lut[v >> 4]`, which threw away the bottom 4 bits of the 16-bit input *and* — because the 4096-entry LUT samples on `i/4095` axis while the buffer is in 16-bit-pixel space — drifted the output upward by up to ~12 LSB mid-range. The output could only take 4096 distinct values per channel, producing visible posterisation on smooth tonal gradients. Replaced with a float-rescale into LUT-index space + linear interpolation between adjacent entries; identity round-trip is now within ±1 LSB across the full 16-bit range, and the output uses all 65536 levels.
+  - **`PixelBuffer.Resize`** (FHD preview downsample) accumulated `long` channel sums and then did `(ushort)(sum / count)`, which truncates toward zero — every output pixel was biased dark by up to 1 LSB. Now uses round-half-up integer division.
+  - **`OpcodesImplementation.NeighborAverage`** (used by `FixBadPixels{Constant,List}`) had the same truncating average — every fixed bad pixel was slightly dark. Now rounds.
+- 5 new tests under `Tests/PipelinePrecisionTests.cs` pin each fix: tone curve monotonicity across all 65536 inputs, ≥60 000 distinct outputs from the identity curve, near-lossless identity round-trip, resize rounds half-up, and the bad-pixel inpaint uses the rounded mean. All 71 tests pass.
+
 ### Changed
 
 - **One file per opcode under `Core/Opcodes/`.** `OpcodesImplementation` is now a `partial` class split across 14 files: the central `OpcodesImplementation.cs` keeps the `Apply` dispatcher, the gamma / sRGB helpers, and the shared private helpers (`ApplyArea`, `SampleBicubicChannel`, `CubicWeight`, `NeighborAverage`, `FixPixel`); each of the 13 supported opcodes lives in its own file alongside a doc-comment block that explains the DNG-spec meaning, the parameters, the typical OpcodeList placement, and any approximation notes. No behaviour change — 62 tests still pass.

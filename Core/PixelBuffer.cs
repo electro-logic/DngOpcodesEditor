@@ -120,9 +120,13 @@ public partial class PixelBuffer : ObservableObject
                         count++;
                     }
                 }
-                ushort r = (ushort)(sumR / count);
-                ushort g = (ushort)(sumG / count);
-                ushort b = (ushort)(sumB / count);
+                // Round-half-up integer division — plain truncation here drops
+                // up to 1 LSB per output pixel and accumulates a perceptible
+                // dimming bias on smooth gradients.
+                int half = count / 2;
+                ushort r = (ushort)((sumR + half) / count);
+                ushort g = (ushort)((sumG + half) / count);
+                ushort b = (ushort)((sumB + half) / count);
                 newPixels[x + y * newW] = r | ((UInt64)g << 16) | ((UInt64)b << 32) | (65535UL << 48);
             }
         });

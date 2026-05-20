@@ -52,6 +52,13 @@ public class DngToneCurve
     }
 
     // Applies the tone curve in place over every channel of every pixel.
+    //
+    // The LUT is 12-bit (4096 entries) but the buffer is 16-bit, so a naive
+    // `lut[px >> 4]` would drop the bottom 4 bits of the input and the output
+    // could only take 4096 distinct values per channel — visible posterisation
+    // on smooth gradients. Instead we linearly interpolate between adjacent
+    // LUT entries using those 4 bits as the fractional weight, restoring full
+    // 16-bit output precision.
     public void Apply(PixelBuffer buffer)
     {
         int W = buffer.Width, H = buffer.Height;
@@ -61,11 +68,31 @@ public class DngToneCurve
             for (int x = 0; x < W; x++)
             {
                 var px = buffer.GetRgb16Pixel(x, y);
-                // 16-bit -> 12-bit LUT index (>> 4 keeps the top 12 bits).
-                px[0] = lut[px[0] >> 4];
-                px[1] = lut[px[1] >> 4];
-                px[2] = lut[px[2] >> 4];
+                px[0] = LookupInterp(lut, px[0]);
+                px[1] = LookupInterp(lut, px[1]);
+                px[2] = LookupInterp(lut, px[2]);
             }
         });
+    }
+
+    // 16-bit -> tone-curve LUT lookup with linear interpolation between
+    // adjacent table entries.
+    //
+    // The LUT is sampled at `x = i / 4095` (so lut[4095] aligns with input
+    // value 65535), but pixel inputs are 16-bit, so a naive `v >> 4` index
+    // and `v & 0xF` fraction would *also* introduce a systematic LUT-axis
+    // drift (≈ +0.04% × idx, up to ~12 LSB mid-range). Rescaling the input
+    // into LUT-index space cleanly removes that — identity round-trip stays
+    // within ±1 LSB across the full 16-bit range.
+    static ushort LookupInterp(ushort[] lut, ushort v)
+    {
+        const float scale = 4095.0f / 65535.0f;
+        float xLut = v * scale;
+        int idx = (int)xLut;
+        if (idx >= 4095) return lut[4095];
+        float frac = xLut - idx;
+        int a = lut[idx];
+        int b = lut[idx + 1];
+        return (ushort)Math.Clamp(MathF.Round(a + (b - a) * frac), 0f, 65535f);
     }
 }

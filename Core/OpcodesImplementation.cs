@@ -166,7 +166,9 @@ public static partial class OpcodesImplementation
         if (x < src.Width - 1) { sum += src.GetRgb16Pixel(x + 1, y)[channel]; count++; }
         if (y > 0) { sum += src.GetRgb16Pixel(x, y - 1)[channel]; count++; }
         if (y < src.Height - 1) { sum += src.GetRgb16Pixel(x, y + 1)[channel]; count++; }
-        return count > 0 ? (UInt16)(sum / count) : src.GetRgb16Pixel(x, y)[channel];
+        // Round-half-up — plain `sum / count` truncates toward zero, biasing
+        // every bad-pixel fix slightly dark.
+        return count > 0 ? (UInt16)((sum + count / 2) / count) : src.GetRgb16Pixel(x, y)[channel];
     }
 
     // Replaces a single pixel's three channels with the 4-neighbour average
