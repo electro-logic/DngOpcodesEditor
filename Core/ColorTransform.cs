@@ -80,18 +80,53 @@ public static class ColorTransform
 
     // Applies the camera-to-sRGB matrix in place over every pixel of the
     // buffer. Each output channel is clamped to [0, 65535].
-    public static void Apply(PixelBuffer buffer, double[,] cameraToSrgb)
+    //
+    // When `asShotNeutralForDesat` is supplied, each pixel is first checked
+    // in white-balanced camera space: if any channel exceeds 1.0 the pixel
+    // is blended toward neutral white before the matrix runs. This kills
+    // the magenta cast that otherwise appears in clipped highlights, where
+    // a channel reaches its sensor maximum before the other two.
+    public static void Apply(PixelBuffer buffer, double[,] cameraToSrgb, double[] asShotNeutralForDesat = null)
     {
         int W = buffer.Width, H = buffer.Height;
         double m00 = cameraToSrgb[0, 0], m01 = cameraToSrgb[0, 1], m02 = cameraToSrgb[0, 2];
         double m10 = cameraToSrgb[1, 0], m11 = cameraToSrgb[1, 1], m12 = cameraToSrgb[1, 2];
         double m20 = cameraToSrgb[2, 0], m21 = cameraToSrgb[2, 1], m22 = cameraToSrgb[2, 2];
+        bool desat = asShotNeutralForDesat != null && asShotNeutralForDesat.Length >= 3;
+        double nR = desat ? asShotNeutralForDesat[0] : 1.0;
+        double nG = desat ? asShotNeutralForDesat[1] : 1.0;
+        double nB = desat ? asShotNeutralForDesat[2] : 1.0;
+        // Below this WB'd max channel the pixel is untouched; above it the
+        // desaturation ramps up to a full blend at maxC = 1 + DESAT_RANGE.
+        const double DESAT_START = 0.95;
+        const double DESAT_RANGE = 0.10;
         Parallel.For(0, H, y =>
         {
             for (int x = 0; x < W; x++)
             {
                 var px = buffer.GetRgb16Pixel(x, y);
                 double r = px[0], g = px[1], b = px[2];
+                if (desat)
+                {
+                    double wr = r / (65535.0 * nR);
+                    double wg = g / (65535.0 * nG);
+                    double wb = b / (65535.0 * nB);
+                    double maxC = Math.Max(wr, Math.Max(wg, wb));
+                    if (maxC > DESAT_START)
+                    {
+                        double t = Math.Clamp((maxC - DESAT_START) / DESAT_RANGE, 0.0, 1.0);
+                        // Blend toward a neutral grey at the same maximum
+                        // brightness — pure highlights become white instead
+                        // of taking on the cast of whichever channel clipped
+                        // first.
+                        wr = wr * (1 - t) + maxC * t;
+                        wg = wg * (1 - t) + maxC * t;
+                        wb = wb * (1 - t) + maxC * t;
+                        r = wr * nR * 65535.0;
+                        g = wg * nG * 65535.0;
+                        b = wb * nB * 65535.0;
+                    }
+                }
                 double rOut = m00 * r + m01 * g + m02 * b;
                 double gOut = m10 * r + m11 * g + m12 * b;
                 double bOut = m20 * r + m21 * g + m22 * b;

@@ -423,6 +423,8 @@ public partial class MainWindowVM : ObservableObject
                 bool decode = DecodeGamma, encode = EncodeGamma;
                 bool doColorTransform = ApplyColorTransform && ColorInfo != null;
                 var cameraToSrgb = ColorInfo?.CameraToSrgb;
+                var asShotNeutral = ColorInfo?.AsShotNeutral;
+                var toneCurve = ColorInfo?.ToneCurve;
                 string error = null;
                 var sw = Stopwatch.StartNew();
                 // The pixel work touches only the managed pixel buffer, so it
@@ -437,9 +439,16 @@ public partial class MainWindowVM : ObservableObject
                         foreach (var op in ops)
                             OpcodesImplementation.Apply(dst, op);
                         // DNG-spec opcodes run on camera-native RGB; convert
-                        // to linear sRGB once the chain has finished.
+                        // to linear sRGB once the chain has finished. The
+                        // AsShotNeutral is forwarded so saturating highlights
+                        // get desaturated instead of taking on the cast of
+                        // whichever channel clipped first.
                         if (doColorTransform)
-                            ColorTransform.Apply(dst, cameraToSrgb);
+                            ColorTransform.Apply(dst, cameraToSrgb, asShotNeutral);
+                        // ProfileToneCurve (DJI ships one) — applied in linear
+                        // sRGB space, before gamma encoding.
+                        if (doColorTransform && toneCurve != null)
+                            toneCurve.Apply(dst);
                         if (encode)
                             OpcodesImplementation.ApplyGamma(dst, 1.0f / 2.2f);
                     }

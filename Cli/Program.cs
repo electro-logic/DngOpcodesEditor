@@ -147,7 +147,12 @@ public static class Program
         if (colorInfo != null)
         {
             Console.WriteLine("Applying DNG colour transform…");
-            ColorTransform.Apply(buffer, colorInfo.CameraToSrgb);
+            ColorTransform.Apply(buffer, colorInfo.CameraToSrgb, colorInfo.AsShotNeutral);
+            if (colorInfo.ToneCurve != null)
+            {
+                Console.WriteLine("Applying ProfileToneCurve…");
+                colorInfo.ToneCurve.Apply(buffer);
+            }
         }
         if (encodeGamma)
         {

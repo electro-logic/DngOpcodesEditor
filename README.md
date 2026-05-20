@@ -19,7 +19,7 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 - **Per-opcode enable / disable**, gamma encode/decode toggles, and an "Add Opcode" picker.
 - **Decoupled Core library** — the WPF window is a thin shell on top of a platform-agnostic core.
 - **One-click "Open DNG (image + opcodes)"** — loads the image, clears the current chain, and imports the file's own OpcodeList tags in one go.
-- **Built-in white-balance + colour transform + baseline exposure** — applies the DNG's AsShotNeutral, ColorMatrix and BaselineExposure automatically (and BlackLevel + WhiteLevel during demosaic), so drone DNGs no longer come out tinted green or under-exposed. Toggleable per file.
+- **Full DNG tonal pipeline** — BlackLevel + WhiteLevel linearisation, AsShotNeutral white balance, ColorMatrix to linear sRGB (with Bradford D50→D65), BaselineExposure gain, highlight desaturation (kills the magenta cast in clipped highlights), and ProfileToneCurve are all applied automatically. Toggleable per file.
 - **FHD preview downsample** — large DNGs (e.g. 24 MP) are downsampled to 1920x1080 before the opcode chain runs, so editing stays responsive. A "Process at full resolution" checkbox bypasses the resize when you need the real output.
 - **Headless CLI** (`dng-opcodes`) for scripting opcode list / extract / inject / metadata / preview operations without the GUI.
 

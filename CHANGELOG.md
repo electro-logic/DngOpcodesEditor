@@ -9,8 +9,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **DNG `ProfileToneCurve` (tag 50940)** now drives the preview's tonal rendering. Read once on file load, baked into a 4096-entry 16-bit LUT (linear interpolation between control points), then applied per-channel after the colour matrix and before gamma encode. DJI Mavic 3 Pro DNGs in the test set ship a 256-point shoulder curve that the editor was previously ignoring.
+- `Core/DngToneCurve.cs` with `FromControlPoints` / `BuildLut` / `Apply` plus tests (identity curve, midtone-halving curve, invalid-input handling).
+- `DngColorInfo.ToneCurve` carries the LUT alongside the existing colour metadata.
 - `DngColorInfo` now reads `BaselineExposure` (tag 50730) and `ColorTransform.BuildCameraToSrgb` folds it into the camera-to-sRGB matrix as a uniform `2^stops` gain. Drone DNGs that ship with positive baseline exposure (DJI Mavic 3 Pro frames in the test set carry up to +0.86 EV) now preview at the brightness the manufacturer recommends.
 - New test asserting `BaselineExposure` scales every cell of the matrix by `2^stops`.
+
+### Fixed
+
+- **Magenta cast in clipped highlights**: `ColorTransform.Apply` now takes an optional `AsShotNeutral` and, when supplied, blends saturating pixels (any WB'd channel above 0.95) toward neutral white before running them through the colour matrix. Highlights that previously came out tinted magenta because one channel clipped before the others now blow out cleanly to white. The MainWindowVM and CLI pass the as-shot neutral through automatically when the colour transform is enabled.
+- Two new tests cover the desaturation path (saturating-blue pixel becomes white; mid-grey pixel is untouched).
 
 ### Changed
 

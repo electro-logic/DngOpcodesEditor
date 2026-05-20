@@ -7,6 +7,50 @@ namespace DngOpcodesEditor.Tests;
 public class ColorTransformTests
 {
     [Fact]
+    public void HighlightDesaturationBlendsSaturatedChannelsTowardWhite()
+    {
+        // Identity matrix so we can read the desaturation effect directly.
+        var identity = new double[,] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+        // AsShotNeutral exaggerated so the WB step pushes blue well above 1.0:
+        //   neutral = (1, 1, 0.5) means a raw pixel of (0, 0, 32768) maps to
+        //   WB'd (0, 0, 1.0) — at the saturation knee.
+        var neutral = new[] { 1.0, 1.0, 0.5 };
+        // Pure-blue pixel with B = 65535 reads WB'd as (0, 0, 2.0) — well into
+        // the saturated zone — so the desat should drag R and G toward 2.0
+        // (then mapped back to camera-native by *neutral*65535).
+        var pixels = new ulong[] { 0UL | (0UL << 16) | (65535UL << 32) | (65535UL << 48) };
+        var buf = new PixelBuffer(pixels, 1, 1);
+
+        ColorTransform.Apply(buf, identity, neutral);
+
+        var px = buf.GetRgb16Pixel(0, 0);
+        // With desat fully engaged (t=1), R and G end up at maxC*nR*65535 and
+        // maxC*nG*65535 — which is 2.0 * 65535 -> clamped to 65535 by the
+        // matrix's per-channel clip. So a saturating blue pixel comes out
+        // white, not magenta-cyan.
+        Assert.Equal(65535, px[0]);
+        Assert.Equal(65535, px[1]);
+        Assert.Equal(65535, px[2]);
+    }
+
+    [Fact]
+    public void HighlightDesaturationLeavesInRangePixelsAlone()
+    {
+        var identity = new double[,] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+        var neutral = new[] { 1.0, 1.0, 1.0 };
+        // 50% grey camera reading -> well below the DESAT_START threshold.
+        var pixels = new ulong[] { 30000UL | (30000UL << 16) | (30000UL << 32) | (65535UL << 48) };
+        var buf = new PixelBuffer(pixels, 1, 1);
+
+        ColorTransform.Apply(buf, identity, neutral);
+
+        var px = buf.GetRgb16Pixel(0, 0);
+        Assert.Equal(30000, px[0]);
+        Assert.Equal(30000, px[1]);
+        Assert.Equal(30000, px[2]);
+    }
+
+    [Fact]
     public void IdentityMatrixLeavesPixelsAlone()
     {
         var identity = new double[,]
