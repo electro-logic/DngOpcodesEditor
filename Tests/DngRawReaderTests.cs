@@ -62,10 +62,11 @@ public class DngRawReaderTests
     [Fact]
     public void Read_ThrowsClearErrorForUnsupportedCompression()
     {
-        // Compression 8 = Adobe Deflate, not supported by this reader.
+        // Compression 99 is not a real TIFF code — pick something the reader
+        // definitely doesn't recognise.
         var tiff = BuildMinimalCfaDng(new ushort[] { 0, 0, 0, 0 }, 2, 2,
             cfaPattern: new byte[] { 0, 1, 1, 2 }, blackLevel: 0, whiteLevel: 65535,
-            compression: 8);
+            compression: 99);
 
         var ex = Assert.Throws<NotSupportedException>(() => DngRawReader.Read(tiff));
         Assert.Contains("Compression", ex.Message, StringComparison.OrdinalIgnoreCase);

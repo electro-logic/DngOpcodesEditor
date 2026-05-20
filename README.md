@@ -13,7 +13,7 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 - **Live preview** of the opcode chain with multi-threaded pixel processing that runs off the UI thread.
 - **Full coverage** of OpcodeList1, OpcodeList2 and OpcodeList3 — each opcode remembers the list it belongs to and is written back to the matching tag.
 - **No external dependencies** — a built-in TIFF/DNG IFD parser replaces the previous ExifTool requirement.
-- **Direct DNG open** for CFA DNGs (Bayer pattern), including Lossless JPEG compressed and tiled layouts, with a built-in bilinear demosaic. LinearRaw DNGs (already demosaiced) are also supported.
+- **Direct DNG open** for CFA DNGs (Bayer pattern), including Lossless JPEG compressed and tiled layouts, with a built-in bilinear demosaic. LinearRaw DNGs (already demosaiced) and plain RGB TIFFs with LZW or Deflate compression are also supported.
 - **Metadata panel** showing the common EXIF / DNG tags of the loaded image (Make, Model, ISO, exposure, DNG-specific colour-calibration tags, etc.).
 - **Drag-and-drop** any combination of `.tiff`, `.dng` and `.bin` files onto the window.
 - **Per-opcode enable / disable**, gamma encode/decode toggles, and an "Add Opcode" picker.
@@ -81,15 +81,15 @@ Available commands:
 |           | `[--no-encode-gamma]`                                  | Skip the final 1/2.2 gamma encode (keep the TIFF linear).        |
 
 `list`, `extract`, `inject` and `metadata` work on any TIFF / DNG regardless of
-compression (they only touch IFD entries). `preview` currently only handles
-uncompressed and Lossless JPEG image data — LZW / Deflate decompression is on
-the roadmap.
+compression (they only touch IFD entries). `preview` understands uncompressed,
+Lossless JPEG, LZW and Adobe Deflate / zlib (compression codes 1, 7, 5 and 8 /
+32946) image data.
 
 ## Project layout
 
 | Project                                 | Purpose                                                                                  |
 |-----------------------------------------|------------------------------------------------------------------------------------------|
-| `Core/DngOpcodesEditor.Core.csproj`     | Platform-agnostic library: opcode reader/writer, opcode preview implementations, TIFF/DNG IFD parser, Lossless JPEG decoder, bilinear DNG raw demosaicer, 16-bit RGB TIFF writer. |
+| `Core/DngOpcodesEditor.Core.csproj`     | Platform-agnostic library: opcode reader/writer, opcode preview implementations, TIFF/DNG IFD parser, Lossless JPEG / LZW / Deflate decoders, bilinear DNG raw demosaicer, 16-bit RGB TIFF writer. |
 | `DngOpcodesEditor.csproj`               | WPF (Windows) GUI front-end.                                                              |
 | `Cli/DngOpcodesEditor.Cli.csproj`       | Headless `dng-opcodes` command-line tool.                                                 |
 | `Tests/DngOpcodesEditor.Tests.csproj`   | xUnit round-trip, decoder and CLI integration tests.                                      |

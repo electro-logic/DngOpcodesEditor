@@ -9,6 +9,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- TIFF LZW decoder (`Core/LzwDecoder.cs`, compression 5). Implements the TIFF "early code-width bump" semantics and the LZW special-case for `k == nextCode`.
+- TIFF Adobe Deflate / zlib decoder (`Core/DeflateDecoder.cs`, compression 8 and the legacy 32946) via `System.IO.Compression.ZLibStream`.
+- `DngRawReader` now opens uncompressed, Lossless JPEG, LZW and Deflate TIFF / DNG payloads — covering every compression bundled with the sample assets.
 - `WarpFisheye` preview: per-plane 4-coefficient polynomial in `atan(r)` with bicubic backward sampling. The opcode is now fully read, written and previewed.
 - Headless `dng-opcodes` CLI (new `Cli/` project): `list`, `extract`, `inject`, `metadata` and `preview` commands. Works without the WPF GUI; useful for batch / scripted opcode editing.
 - `Core/TiffWriter.cs`: minimal 16-bit RGB TIFF encoder used by the CLI `preview` command (and a building block for any future "save as 16-bit TIFF" in the GUI).

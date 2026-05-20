@@ -63,10 +63,12 @@ public static class DngRawReader
         SampleDecoder decoder = compression switch
         {
             1 => DecodeUncompressed,
+            5 => DecodeLzw,
             7 => DecodeLosslessJpeg,
+            8 or 32946 => DecodeDeflate,
             _ => throw new NotSupportedException(
                 $"Compression {compression} is not supported. " +
-                "Only uncompressed (1) and Lossless JPEG (7) DNGs are handled directly.")
+                "Handled values: 1 (uncompressed), 5 (LZW), 7 (Lossless JPEG), 8 / 32946 (Deflate).")
         };
 
         var samples = LoadSamples(tiff, isLE, ifd, width, height, samplesPerPixel, bitsPerSample, decoder);
@@ -203,6 +205,24 @@ public static class DngRawReader
         var jpegBytes = new byte[byteCount];
         Buffer.BlockCopy(file, offset, jpegBytes, 0, byteCount);
         return LosslessJpegDecoder.Decode(jpegBytes, out _, out _, out _, out _);
+    }
+
+    static ushort[] DecodeLzw(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE)
+    {
+        // LZW inflates to raw uncompressed sample bytes, which we then read
+        // through the standard uncompressed decoder.
+        var compressed = new byte[byteCount];
+        Buffer.BlockCopy(file, offset, compressed, 0, byteCount);
+        var inflated = LzwDecoder.Decode(compressed);
+        return DecodeUncompressed(inflated, 0, inflated.Length, bitsPerSample, isLE);
+    }
+
+    static ushort[] DecodeDeflate(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE)
+    {
+        var compressed = new byte[byteCount];
+        Buffer.BlockCopy(file, offset, compressed, 0, byteCount);
+        var inflated = DeflateDecoder.Decode(compressed);
+        return DecodeUncompressed(inflated, 0, inflated.Length, bitsPerSample, isLE);
     }
 
     // --- Tag helpers ---------------------------------------------------------
