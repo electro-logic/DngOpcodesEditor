@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.7] - 2026-05-20
 
 ### Added
 
@@ -161,6 +161,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Initial implementations of `WarpRectilinear` (single-plane, nearest-neighbour), `FixVignetteRadial` and `TrimBounds`.
 - Initial WPF MVVM editor with reader/writer for the OpcodeList binary format.
 
+[0.8.7]: https://github.com/electro-logic/DngOpcodesEditor/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/electro-logic/DngOpcodesEditor/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/electro-logic/DngOpcodesEditor/compare/v0.8...v0.8.5
 [0.8.0]: https://github.com/electro-logic/DngOpcodesEditor/compare/v0.7...v0.8
