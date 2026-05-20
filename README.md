@@ -132,3 +132,4 @@ Make sure your image viewer supports 16-bit TIFF files.
 - [DNG 1.7.0.0 Specification](https://helpx.adobe.com/camera-raw/digital-negative.html)
 - [LibRaw](https://www.libraw.org)
 - [Changelog](CHANGELOG.md)
+- [Opcode support & test-sample inventory](docs/opcode-support.md)
