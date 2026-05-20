@@ -450,9 +450,12 @@ public partial class MainWindowVM : ObservableObject
                 {
                     try
                     {
-                        // Opcodes operate on linear values, before gamma encoding
+                        // Opcodes operate on linear values, before gamma encoding.
+                        // Inputs flagged as gamma-encoded (8-bit-per-channel
+                        // TIFFs / PNGs etc.) are decoded with the proper sRGB
+                        // EOTF rather than the 2.2 approximation we used before.
                         if (decode)
-                            OpcodesImplementation.ApplyGamma(dst, 2.2f);
+                            OpcodesImplementation.ApplySrgbDecode(dst);
                         foreach (var op in ops)
                             OpcodesImplementation.Apply(dst, op);
                         // DNG-spec opcodes run on camera-native RGB; convert
@@ -466,8 +469,10 @@ public partial class MainWindowVM : ObservableObject
                         // sRGB space, before gamma encoding.
                         if (doColorTransform && toneCurve != null)
                             toneCurve.Apply(dst);
+                        // Output is encoded with the proper sRGB OETF so it
+                        // matches what monitors and image viewers expect.
                         if (encode)
-                            OpcodesImplementation.ApplyGamma(dst, 1.0f / 2.2f);
+                            OpcodesImplementation.ApplySrgbEncode(dst);
                     }
                     catch (Exception ex)
                     {

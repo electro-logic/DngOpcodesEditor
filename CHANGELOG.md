@@ -22,6 +22,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 
+- **Gamma encode / decode now use the proper sRGB transfer function (IEC 61966-2-1)** instead of the rough `pow(c, 1/2.2)` approximation. New `OpcodesImplementation.ApplySrgbEncode` (OETF) and `ApplySrgbDecode` (EOTF) methods — piecewise functions with a small linear segment in shadows and a 2.4-gamma power segment elsewhere. MainWindowVM and the CLI's `preview` command both route through them. Visible improvement is mainly in shadow detail; the rest of the curve matches what monitors and image viewers expect. The legacy `ApplyGamma(buffer, exponent)` helper stays in Core for explicit power-curve uses. UI checkbox labels updated to "Decode Input (sRGB)" / "Encode Output (sRGB)". CLI flag names (`--decode-input-gamma`, `--no-encode-gamma`) unchanged.
 - **All file dialogs now start in the dedicated DNG sample folder `D:\DngOpcodesEditor\Samples\dng`** (when present, with the previous repo `Samples/` and bin-output fallbacks behind it) and remember the most recently used folder for the next dialog. Applies to Open / Import / Save / Export commands alike.
 
 ### Changed

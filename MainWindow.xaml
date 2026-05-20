@@ -104,8 +104,10 @@
         <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Right" d:Text="Position" />
 
         <StackPanel Grid.Row="4" Orientation="Horizontal">
-            <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input Gamma" />
-            <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output Gamma" Margin="5,0,0,0" />
+            <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input (sRGB)"
+                      ToolTip="Decode gamma-encoded inputs (typically 8-bit TIFF / PNG) with the sRGB EOTF before applying opcodes." />
+            <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output (sRGB)" Margin="5,0,0,0"
+                      ToolTip="Encode the preview with the sRGB OETF so it displays correctly on a standard sRGB monitor." />
             <CheckBox IsChecked="{Binding ApplyColorTransform,Mode=TwoWay}" Content="Apply DNG Color Transform" Margin="20,0,0,0"
                       ToolTip="White balance + ColorMatrix from the DNG (AsShotNeutral and ColorMatrix2)" />
             <CheckBox IsChecked="{Binding ProcessAtFullResolution,Mode=TwoWay}" Content="Process at full resolution" Margin="20,0,0,0"

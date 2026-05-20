@@ -131,8 +131,8 @@ public static class Program
 
         if (decodeGamma)
         {
-            Console.WriteLine("Decoding input gamma (2.2)…");
-            OpcodesImplementation.ApplyGamma(buffer, 2.2f);
+            Console.WriteLine("Decoding input gamma (sRGB EOTF)…");
+            OpcodesImplementation.ApplySrgbDecode(buffer);
         }
 
         Console.WriteLine($"Loading opcodes from {listFile}…");
@@ -156,8 +156,8 @@ public static class Program
         }
         if (encodeGamma)
         {
-            Console.WriteLine("Encoding output gamma (2.2)…");
-            OpcodesImplementation.ApplyGamma(buffer, 1.0f / 2.2f);
+            Console.WriteLine("Encoding output gamma (sRGB OETF)…");
+            OpcodesImplementation.ApplySrgbEncode(buffer);
         }
 
         Console.WriteLine($"Writing {output}…");
@@ -214,8 +214,8 @@ Commands:
   inject    <dng> <input.bin> <list:1|2|3>               Replace OpcodeListN in the DNG with the payload (file modified in place).
   metadata  <file>                                       Print common EXIF / DNG tags from a TIFF or DNG file.
   preview   <input.dng|tiff> <list.bin> <output.tiff>    Apply an opcode list to an image and write a 16-bit RGB TIFF.
-              [--decode-input-gamma]                       Apply a 2.2 gamma decode to the input first (use for gamma-encoded TIFF/PNG sources).
-              [--no-encode-gamma]                          Skip the final 1/2.2 gamma encode (leave the TIFF linear).
+              [--decode-input-gamma]                       Apply the sRGB EOTF to the input first (use for gamma-encoded TIFF/PNG sources).
+              [--no-encode-gamma]                          Skip the final sRGB OETF (leave the TIFF linear).
               [--raw-colors]                               Skip the DNG colour transform (keep camera-native RGB).
               [--max-dimension N]                          Downsample so the longest side fits within N pixels.
   help                                                   Show this help.

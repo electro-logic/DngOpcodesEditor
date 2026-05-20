@@ -31,13 +31,51 @@ public static class OpcodesImplementation
         }
     }
     // Raises every pixel value to the given exponent (in normalized [0,1] space).
-    // Used to switch between gamma-encoded and linear representations.
+    // Used to switch between gamma-encoded and linear representations using a
+    // pure power curve.
     public static void ApplyGamma(PixelBuffer img, float exponent)
     {
         Parallel.For(0, img.Height, (y) =>
         {
             for (int x = 0; x < img.Width; x++)
                 img.ChangeRgb16Pixel(x, y, pixel => MathF.Pow(pixel / 65535.0f, exponent) * 65535.0f);
+        });
+    }
+    // sRGB OETF (encode linear -> display-ready sRGB) — IEC 61966-2-1. A
+    // piecewise function with a small linear segment near 0 and a
+    // gamma-2.4 power segment elsewhere; the effective gamma averages to
+    // about 2.2 but the curve is shaped correctly in the dark range, which
+    // matters for shadows.
+    public static void ApplySrgbEncode(PixelBuffer img)
+    {
+        Parallel.For(0, img.Height, (y) =>
+        {
+            for (int x = 0; x < img.Width; x++)
+                img.ChangeRgb16Pixel(x, y, pixel =>
+                {
+                    float v = pixel / 65535.0f;
+                    float e = v <= 0.0031308f
+                        ? 12.92f * v
+                        : 1.055f * MathF.Pow(v, 1.0f / 2.4f) - 0.055f;
+                    return e * 65535.0f;
+                });
+        });
+    }
+    // sRGB EOTF (decode display-encoded sRGB -> linear). Inverse of
+    // ApplySrgbEncode.
+    public static void ApplySrgbDecode(PixelBuffer img)
+    {
+        Parallel.For(0, img.Height, (y) =>
+        {
+            for (int x = 0; x < img.Width; x++)
+                img.ChangeRgb16Pixel(x, y, pixel =>
+                {
+                    float v = pixel / 65535.0f;
+                    float l = v <= 0.04045f
+                        ? v / 12.92f
+                        : MathF.Pow((v + 0.055f) / 1.055f, 2.4f);
+                    return l * 65535.0f;
+                });
         });
     }
     // Multiplies a specified area and plane range of an image by a gain map
