@@ -112,6 +112,8 @@
                       ToolTip="White balance + ColorMatrix from the DNG (AsShotNeutral and ColorMatrix2)" />
             <CheckBox IsChecked="{Binding ProcessAtFullResolution,Mode=TwoWay}" Content="Process at full resolution" Margin="20,0,0,0"
                       ToolTip="By default the preview is downsampled to FHD (1920x1080) for responsiveness on large DNGs" />
+            <CheckBox IsChecked="{Binding DitherDisplay,Mode=TwoWay}" Content="Display Dither" Margin="20,0,0,0"
+                      ToolTip="TPDF dither at the 16→8 bit display conversion. Live preview only — saved TIFFs are 16-bit and untouched. Toggle off to A/B vs. the raw truncated 8-bit." />
         </StackPanel>
         
     </Grid>

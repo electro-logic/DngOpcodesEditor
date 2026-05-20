@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`ProfileHueSatMap` (DNG tags 50937 / 50938 / 50939) now drives per-hue saturation and value tweaks.** Read on file load and applied between the colour matrix and the tone curve, per the DNG spec ordering. Trilinear interpolation in HSV with hue wrap-around. Closes the saturation gap visible against Windows Photos on DJI Phantom 4 / Mavic 3 Pro DNGs, especially in the high-V high-S cells the manufacturer targets (skies, vivid colours). Uses `HueSatMap2` (D65) by default — HueSatMap1 + illuminant-interpolated blending remain future work (`docs/opcode-support.md`).
+- 5 new tests covering identity table, sat-boost on grey pixels (stays grey), sat-boost on coloured pixels (correctly increases sat), 120° hue rotation, and invalid-input handling.
+- **Display Dither checkbox** in the WPF window — toggles `Image.DitherDisplay` live so you can A/B the dithered vs untouched 16→8 conversion without restarting. Bound to a `MainWindowVM.DitherDisplay` `[ObservableProperty]`; changes redraw the preview from the unchanged 16-bit buffer (no full pipeline rerun).
+
 ## [0.8.7] - 2026-05-20
 
 ### Added

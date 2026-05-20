@@ -17,6 +17,10 @@ public class DngColorInfo
     // DNG tag 50940 ProfileToneCurve, pre-baked into a 16-bit LUT. Null if
     // the DNG doesn't ship one.
     public DngToneCurve ToneCurve { get; init; }
+    // DNG ProfileHueSatMap (50937 dims + 50939 data2 — D65 calibration is
+    // used by default; HueSatMap1/3 + illuminant interpolation are future
+    // work). Null if the DNG doesn't ship one.
+    public ProfileHueSatMap HueSatMap { get; init; }
 
     // Reads the relevant tags. Returns null if the file isn't a TIFF / DNG
     // or if the colour-calibration tags aren't present.
@@ -29,6 +33,8 @@ public class DngColorInfo
             int matrixEntry = -1;
             int baselineEntry = -1;
             int toneCurveEntry = -1;
+            int hsmDimsEntry = -1;
+            int hsmDataEntry = -1;     // prefer HueSatMap2 (D65), fall back to Map1
             foreach (var ifd in TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd))
             {
                 if (neutralEntry < 0)
@@ -40,7 +46,18 @@ public class DngColorInfo
                     baselineEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50730);
                 if (toneCurveEntry < 0)
                     toneCurveEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50940);
-                if (neutralEntry >= 0 && matrixEntry >= 0 && baselineEntry >= 0 && toneCurveEntry >= 0) break;
+                if (hsmDimsEntry < 0)
+                    hsmDimsEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50937);
+                if (hsmDataEntry < 0)
+                    hsmDataEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50939);
+            }
+            if (hsmDataEntry < 0)
+            {
+                foreach (var ifd in TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd))
+                {
+                    hsmDataEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 50938);
+                    if (hsmDataEntry >= 0) break;
+                }
             }
             if (matrixEntry < 0)
             {
@@ -71,6 +88,13 @@ public class DngColorInfo
                 var xy = TiffFile.ReadEntryAsDoubleArray(tiff, isLE, toneCurveEntry);
                 toneCurve = DngToneCurve.FromControlPoints(xy);
             }
+            ProfileHueSatMap hueSatMap = null;
+            if (hsmDimsEntry >= 0 && hsmDataEntry >= 0)
+            {
+                var dims = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, hsmDimsEntry);
+                var data = TiffFile.ReadEntryAsDoubleArray(tiff, isLE, hsmDataEntry);
+                hueSatMap = ProfileHueSatMap.TryBuild(dims, data);
+            }
             return new DngColorInfo
             {
                 AsShotNeutral = neutral,
@@ -78,6 +102,7 @@ public class DngColorInfo
                 BaselineExposure = baseline,
                 CameraToSrgb = ColorTransform.BuildCameraToSrgb(neutral, matrix, baseline),
                 ToneCurve = toneCurve,
+                HueSatMap = hueSatMap,
             };
         }
         catch

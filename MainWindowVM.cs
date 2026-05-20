@@ -33,6 +33,8 @@ public partial class MainWindowVM : ObservableObject
     bool _applyColorTransform = true;
     [ObservableProperty]
     bool _processAtFullResolution;
+    [ObservableProperty]
+    bool _ditherDisplay = Image.DitherDisplay;
     public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
     // File dialogs start here. After each successful Open / Save, the
     // dialog's folder is remembered for the next dialog. Initial value:
@@ -409,6 +411,14 @@ public partial class MainWindowVM : ObservableObject
     partial void OnDecodeGammaChanged(bool value) => _ = ApplyOpcodes();
     partial void OnEncodeGammaChanged(bool value) => _ = ApplyOpcodes();
     partial void OnApplyColorTransformChanged(bool value) => _ = ApplyOpcodes();
+    partial void OnDitherDisplayChanged(bool value)
+    {
+        Image.DitherDisplay = value;
+        // No need to rerun the full pipeline — just refresh the on-screen
+        // bitmap from the existing 16-bit buffer.
+        ImgSrc?.Update();
+        ImgDst?.Update();
+    }
     partial void OnProcessAtFullResolutionChanged(bool value)
     {
         if (_originalImage == null) return;
@@ -442,6 +452,7 @@ public partial class MainWindowVM : ObservableObject
                 var cameraToSrgb = ColorInfo?.CameraToSrgb;
                 var asShotNeutral = ColorInfo?.AsShotNeutral;
                 var toneCurve = ColorInfo?.ToneCurve;
+                var hueSatMap = ColorInfo?.HueSatMap;
                 string error = null;
                 var sw = Stopwatch.StartNew();
                 // The pixel work touches only the managed pixel buffer, so it
@@ -465,6 +476,13 @@ public partial class MainWindowVM : ObservableObject
                         // whichever channel clipped first.
                         if (doColorTransform)
                             ColorTransform.Apply(dst, cameraToSrgb, asShotNeutral);
+                        // ProfileHueSatMap — per-hue saturation / value tweak
+                        // the manufacturer ships to get "punchy" colour
+                        // rendering (DJI saturates skies and oranges here).
+                        // Applied between the colour matrix and the tone curve
+                        // per the DNG spec ordering.
+                        if (doColorTransform && hueSatMap != null)
+                            hueSatMap.Apply(dst);
                         // ProfileToneCurve (DJI ships one) — applied in linear
                         // sRGB space, before gamma encoding.
                         if (doColorTransform && toneCurve != null)

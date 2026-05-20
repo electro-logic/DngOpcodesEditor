@@ -148,6 +148,11 @@ public static class Program
         {
             Console.WriteLine("Applying DNG colour transform…");
             ColorTransform.Apply(buffer, colorInfo.CameraToSrgb, colorInfo.AsShotNeutral);
+            if (colorInfo.HueSatMap != null)
+            {
+                Console.WriteLine("Applying ProfileHueSatMap…");
+                colorInfo.HueSatMap.Apply(buffer);
+            }
             if (colorInfo.ToneCurve != null)
             {
                 Console.WriteLine("Applying ProfileToneCurve…");
