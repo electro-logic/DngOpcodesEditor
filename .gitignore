@@ -8,6 +8,7 @@
 **/bin/
 **/obj/
 
-# Local-only DNG samples (e.g. the MIT-Adobe FiveK dataset). Keep these out
-# of the repo — they're large binaries with their own licence.
-/Samples/dng/
+# Local-only sample data and spec PDFs. Kept out of the repo — large
+# binaries (DNG corpora, PDFs, SDK zips) with their own licences.
+/Samples/
+/docs/specs/

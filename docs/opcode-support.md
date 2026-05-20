@@ -1,6 +1,6 @@
 # DNG opcode support and test-sample inventory
 
-This document tracks every opcode defined by the [DNG 1.7.1 spec](specs/DNG_Spec_1_7_1_0.pdf) (Chapter 7 *Mapping Camera Color Space to CIE XYZ Space* and the opcode appendix), what the editor currently does with each, and where the testing gaps are.
+This document tracks every opcode defined by the [DNG 1.7.1 spec](https://helpx.adobe.com/camera-raw/digital-negative.html) (Chapter 7 *Mapping Camera Color Space to CIE XYZ Space* and the opcode appendix), what the editor currently does with each, and where the testing gaps are.
 
 | Column | Meaning |
 |---|---|
@@ -76,7 +76,7 @@ These are opcodes the editor can read / write / preview, but for which we have *
 
 A practical way to source these:
 
-- **Adobe DNG Converter** with a deep camera profile (rare); the *Adobe DNG SDK* sample set bundled with `docs/specs/dng_sdk_1_7_1_2573_20260512.zip` ships small reference DNGs that may exercise some of these.
+- **Adobe DNG Converter** with a deep camera profile (rare); the *Adobe DNG SDK* sample set (downloadable from Adobe) ships small reference DNGs that may exercise some of these.
 - **The MIT-Adobe FiveK dataset** ([data.csail.mit.edu/graphics/fivek](https://data.csail.mit.edu/graphics/fivek/)) — large corpus of real-world DNGs across many cameras; a few include the rarer opcode lists.
 - **OpenAstroProject / N.I.N.A. forums** — published calibration DNGs often contain `DeltaPerRow` / `ScalePerColumn`.
 - **DJI / Skydio / Parrot firmware updates** sometimes change which opcodes ship in the DNG; collecting frames from new firmware can surface `WarpFisheye` and `WarpRectilinear2`.
@@ -98,7 +98,7 @@ The opcode list isn't the only metadata that drives a faithful preview. The colo
 10. **sRGB OETF** (IEC 61966-2-1, not `pow(c, 1/2.2)`) — display encoding
 11. **TPDF dither** at the 16→8 bit display conversion (WPF preview only; saved 16-bit TIFFs are untouched)
 
-Outstanding (in priority order — see `CHANGELOG.md` and the spec analysis in `docs/specs/`):
+Outstanding (in priority order — see `CHANGELOG.md` for history):
 
 1. **`ForwardMatrix1`/`2` (50964 / 50965)** — DNG-spec-preferred camera → XYZ path; behaves better at highlights than `inv(ColorMatrix)` and would further reduce residual colour drift.
 2. **HueSatMap1 ↔ HueSatMap2 illuminant interpolation** — currently uses Map2 (D65) by default; the spec describes blending based on the AsShotNeutral CCT.
