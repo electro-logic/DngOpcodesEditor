@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **One-click "Open DNG (image + opcodes)" command and button** that loads a DNG, clears the existing opcode chain, and imports the file's own OpcodeList tags in one step — the typical workflow for inspecting a manufacturer's pipeline (e.g. DJI lens correction).
+- **DNG colour transform**: applies AsShotNeutral white balance + ColorMatrix2 (D65, fallback ColorMatrix1) automatically when a DNG is open, so previews from camera DNGs come out roughly white-balanced instead of green-tinted. New "Apply DNG Color Transform" checkbox in the GUI. CLI gets a `--raw-colors` flag to skip it. Uses Bradford D50→D65 chromatic adaptation and a row-normalisation hack so the as-shot scene white maps exactly to (1,1,1) linear sRGB regardless of camera/calibration quirks.
+- **FHD preview downsample**: full-resolution DNGs are kept on the side while a working copy (at most 1920x1080) feeds the opcode pipeline, so editing a 24 MP image stays interactive. New "Process at full resolution" checkbox bypasses the resize. CLI: `--max-dimension N` opt-in resize.
+- `Core/ColorTransform.cs`: 3x3 matrix invert / multiply / apply helpers plus the camera-native-RGB to linear-sRGB builder.
+- `Core/DngColorInfo.cs`: extracts AsShotNeutral + ColorMatrix1/2 from a DNG and pre-builds the camera-to-sRGB matrix.
+- `PixelBuffer.Resize(maxW, maxH)`: parallel box-filter downsampler.
+- `TiffFile.ReadEntryAsDoubleArray`: read RATIONAL / SRATIONAL / FLOAT / DOUBLE tag arrays at full precision (needed by AsShotNeutral / ColorMatrix).
+- Tests: 7 new tests covering PixelBuffer.Resize (4) and ColorTransform (3 — identity, invert round-trip, white-maps-to-white).
+
+### Notes
+
+- The colour transform skips DNG's full tone-curve and chromatic adaptation between scene illuminant and calibration illuminant — it's a "good enough for preview" approximation. Slightly saturated colours can drift; whites are forced to (1,1,1).
+- The FHD downsample uses absolute opcode coordinates as-is, which works for the common DJI case (GainMap covering the full image + radial WarpRectilinear) but may give approximate results for opcodes with sparse per-pixel data (DeltaPerRow / FixBadPixelsList). Enable "Process at full resolution" for exact output.
+
 ## [0.8.0] - 2026-05-20
 
 ### Fixed

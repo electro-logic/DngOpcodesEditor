@@ -18,6 +18,9 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 - **Drag-and-drop** any combination of `.tiff`, `.dng` and `.bin` files onto the window.
 - **Per-opcode enable / disable**, gamma encode/decode toggles, and an "Add Opcode" picker.
 - **Decoupled Core library** — the WPF window is a thin shell on top of a platform-agnostic core.
+- **One-click "Open DNG (image + opcodes)"** — loads the image, clears the current chain, and imports the file's own OpcodeList tags in one go.
+- **Built-in white-balance + colour transform** — applies the DNG's AsShotNeutral and ColorMatrix automatically so drone DNGs no longer come out tinted green. Toggleable per file.
+- **FHD preview downsample** — large DNGs (e.g. 24 MP) are downsampled to 1920x1080 before the opcode chain runs, so editing stays responsive. A "Process at full resolution" checkbox bypasses the resize when you need the real output.
 - **Headless CLI** (`dng-opcodes`) for scripting opcode list / extract / inject / metadata / preview operations without the GUI.
 
 ## Supported opcodes
@@ -79,6 +82,8 @@ Available commands:
 | `preview` | `<input.dng\|tiff> <list.bin> <output.tiff>`           | Apply an opcode list to an image and write a 16-bit RGB TIFF.    |
 |           | `[--decode-input-gamma]`                               | Apply a 2.2 gamma decode to the input first.                     |
 |           | `[--no-encode-gamma]`                                  | Skip the final 1/2.2 gamma encode (keep the TIFF linear).        |
+|           | `[--raw-colors]`                                       | Skip the DNG colour transform (keep camera-native RGB).          |
+|           | `[--max-dimension N]`                                  | Downsample so the longest side fits within N pixels.             |
 
 `list`, `extract`, `inject` and `metadata` work on any TIFF / DNG regardless of
 compression (they only touch IFD entries). `preview` understands uncompressed,

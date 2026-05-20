@@ -139,6 +139,55 @@ public static class TiffFile
         EnumerateIfds(tiff, isLE, firstIfd);
     public static byte[] ReadEntryBytesPublic(byte[] tiff, bool isLE, int entryOffset) =>
         ReadEntryBytes(tiff, isLE, entryOffset);
+    // Reads a TIFF entry's value as a double[] regardless of underlying type.
+    // Useful for tags whose precision matters (RATIONAL, SRATIONAL, FLOAT,
+    // DOUBLE) such as AsShotNeutral and ColorMatrix.
+    public static double[] ReadEntryAsDoubleArray(byte[] tiff, bool isLE, int entryOffset)
+    {
+        ushort type = ReadUInt16(tiff, entryOffset + 2, isLE);
+        uint count = ReadUInt32(tiff, entryOffset + 4, isLE);
+        int elementSize = TypeSize(type);
+        int totalBytes = (int)count * elementSize;
+        int dataOffset = totalBytes <= 4 ? entryOffset + 8 : (int)ReadUInt32(tiff, entryOffset + 8, isLE);
+        var result = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            switch (type)
+            {
+                case 1 or 7: result[i] = tiff[dataOffset + i]; break;
+                case 3: result[i] = ReadUInt16(tiff, dataOffset + i * 2, isLE); break;
+                case 4: result[i] = ReadUInt32(tiff, dataOffset + i * 4, isLE); break;
+                case 8: result[i] = (short)ReadUInt16(tiff, dataOffset + i * 2, isLE); break;
+                case 9: result[i] = (int)ReadUInt32(tiff, dataOffset + i * 4, isLE); break;
+                case 5:
+                {
+                    uint num = ReadUInt32(tiff, dataOffset + i * 8, isLE);
+                    uint den = ReadUInt32(tiff, dataOffset + i * 8 + 4, isLE);
+                    result[i] = den != 0 ? (double)num / den : 0;
+                    break;
+                }
+                case 10:
+                {
+                    int num = (int)ReadUInt32(tiff, dataOffset + i * 8, isLE);
+                    int den = (int)ReadUInt32(tiff, dataOffset + i * 8 + 4, isLE);
+                    result[i] = den != 0 ? (double)num / den : 0;
+                    break;
+                }
+                case 11:
+                    result[i] = isLE
+                        ? System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(tiff.AsSpan(dataOffset + i * 4))
+                        : System.Buffers.Binary.BinaryPrimitives.ReadSingleBigEndian(tiff.AsSpan(dataOffset + i * 4));
+                    break;
+                case 12:
+                    result[i] = isLE
+                        ? System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(tiff.AsSpan(dataOffset + i * 8))
+                        : System.Buffers.Binary.BinaryPrimitives.ReadDoubleBigEndian(tiff.AsSpan(dataOffset + i * 8));
+                    break;
+                default: result[i] = 0; break;
+            }
+        }
+        return result;
+    }
     public static uint[] ReadEntryAsUInt32Array(byte[] tiff, bool isLE, int entryOffset)
     {
         ushort type = ReadUInt16(tiff, entryOffset + 2, isLE);

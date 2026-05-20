@@ -47,4 +47,47 @@ public partial class PixelBuffer : ObservableObject
         _width = _width,
         _height = _height
     };
+
+    // Box-filter downsample so the longest side fits within maxWidth/maxHeight.
+    // Returns this buffer (cloned) unchanged if it's already small enough.
+    public PixelBuffer Resize(int maxWidth, int maxHeight)
+    {
+        double scale = Math.Min((double)maxWidth / _width, (double)maxHeight / _height);
+        if (scale >= 1.0)
+            return ClonePixels();
+        int newW = Math.Max(1, (int)(_width * scale));
+        int newH = Math.Max(1, (int)(_height * scale));
+        var newPixels = new UInt64[newW * newH];
+        // Per-axis scale factor (source pixels per destination pixel).
+        double sxStep = (double)_width / newW;
+        double syStep = (double)_height / newH;
+        System.Threading.Tasks.Parallel.For(0, newH, y =>
+        {
+            int sy0 = (int)(y * syStep);
+            int sy1 = Math.Min((int)((y + 1) * syStep + 0.5), _height);
+            if (sy1 <= sy0) sy1 = sy0 + 1;
+            for (int x = 0; x < newW; x++)
+            {
+                int sx0 = (int)(x * sxStep);
+                int sx1 = Math.Min((int)((x + 1) * sxStep + 0.5), _width);
+                if (sx1 <= sx0) sx1 = sx0 + 1;
+                long sumR = 0, sumG = 0, sumB = 0;
+                int count = 0;
+                for (int yy = sy0; yy < sy1; yy++)
+                {
+                    for (int xx = sx0; xx < sx1; xx++)
+                    {
+                        var px = GetRgb16Pixel(xx, yy);
+                        sumR += px[0]; sumG += px[1]; sumB += px[2];
+                        count++;
+                    }
+                }
+                ushort r = (ushort)(sumR / count);
+                ushort g = (ushort)(sumG / count);
+                ushort b = (ushort)(sumB / count);
+                newPixels[x + y * newW] = r | ((UInt64)g << 16) | ((UInt64)b << 32) | (65535UL << 48);
+            }
+        });
+        return new PixelBuffer(newPixels, newW, newH);
+    }
 }

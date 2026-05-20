@@ -27,11 +27,23 @@ public partial class MainWindowVM : ObservableObject
     OpcodeId _selectedOpcodeId = OpcodeId.FixVignetteRadial;
     [ObservableProperty]
     System.Collections.Generic.List<DngMetadata.Entry> _metadata = new();
+    [ObservableProperty]
+    DngColorInfo _colorInfo;
+    [ObservableProperty]
+    bool _applyColorTransform = true;
+    [ObservableProperty]
+    bool _processAtFullResolution;
     public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
     readonly string SAMPLES_DIR = Path.Combine(AppContext.BaseDirectory, "Samples");
+    // Working previews are downsampled to at most this size unless
+    // ProcessAtFullResolution is set, so editing 24 MP DNGs stays snappy.
+    const int MaxPreviewWidth = 1920;
+    const int MaxPreviewHeight = 1080;
     // Re-entrancy guard: rapid edits (ex. dragging a slider) coalesce into a
     // single trailing run instead of stacking concurrent passes.
     bool _applyRunning, _applyPending;
+    Image _originalImage;
+    string _openedFilename;
     public MainWindowVM()
     {
         EncodeGamma = true;
@@ -70,18 +82,40 @@ public partial class MainWindowVM : ObservableObject
             _ = ApplyOpcodes();
         }
     }
+    // Combined command: open a DNG, drop any existing opcodes, and import
+    // the DNG's own OpcodeList tags so the editor immediately shows the
+    // file's intended pipeline.
+    [RelayCommand]
+    async Task OpenDngWithOpcodes()
+    {
+        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
+        if (dialog.ShowDialog() != true)
+            return;
+        OpenDngWithOpcodes(dialog.FileName);
+        await ApplyOpcodes();
+    }
+    public void OpenDngWithOpcodes(string filename)
+    {
+        Opcodes.Clear();
+        OpenImage(filename);
+        if (Path.GetExtension(filename).Equals(".dng", StringComparison.OrdinalIgnoreCase))
+            ImportDng(filename);
+    }
     public void OpenImage(string filename)
     {
         try
         {
             var img = new Image();
+            DngColorInfo colorInfo = null;
             // DNG files are routed through the built-in CFA reader so users no
             // longer need to develop the file with dcraw_emu first. Other
             // formats (TIFF, PNG, ...) go through WPF's BitmapDecoder.
             if (Path.GetExtension(filename).Equals(".dng", StringComparison.OrdinalIgnoreCase))
             {
-                var buffer = DngRawReader.Read(File.ReadAllBytes(filename));
+                var bytes = File.ReadAllBytes(filename);
+                var buffer = DngRawReader.Read(bytes);
                 img.LoadFromBuffer(buffer);
+                colorInfo = DngColorInfo.TryRead(bytes);
                 // Raw CFA data is linear; no input-gamma decode required.
                 DecodeGamma = false;
             }
@@ -90,8 +124,10 @@ public partial class MainWindowVM : ObservableObject
                 int bpp = img.Open(filename);
                 DecodeGamma = bpp <= 32;
             }
-            ImgSrc = img;
-            ImgDst = ImgSrc.Clone();
+            _originalImage = img;
+            _openedFilename = filename;
+            ColorInfo = colorInfo;
+            RebuildWorkingImage();
             Metadata = ReadFileMetadata(filename);
             SetWindowTitle(filename);
         }
@@ -100,6 +136,27 @@ public partial class MainWindowVM : ObservableObject
             MessageBox.Show($"Unable to open image:\n{filename}\n\n{ex.Message}", "Open Image",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+    // Produces the working ImgSrc — a clone of the loaded full-resolution
+    // image, downsampled to <= 1920x1080 unless ProcessAtFullResolution is
+    // set. The opcode chain runs on this working copy for responsiveness.
+    void RebuildWorkingImage()
+    {
+        if (_originalImage == null) return;
+        bool needsResize = !ProcessAtFullResolution
+            && (_originalImage.Width > MaxPreviewWidth || _originalImage.Height > MaxPreviewHeight);
+        if (needsResize)
+        {
+            var smaller = _originalImage.Resize(MaxPreviewWidth, MaxPreviewHeight);
+            var working = new Image();
+            working.LoadFromBuffer(smaller);
+            ImgSrc = working;
+        }
+        else
+        {
+            ImgSrc = _originalImage.Clone();
+        }
+        ImgDst = ImgSrc.Clone();
     }
     static System.Collections.Generic.List<DngMetadata.Entry> ReadFileMetadata(string filename)
     {
@@ -315,6 +372,15 @@ public partial class MainWindowVM : ObservableObject
     Opcode[] ImportBin(byte[] binaryData) => new OpcodesReader().ReadOpcodeList(binaryData);
     partial void OnDecodeGammaChanged(bool value) => _ = ApplyOpcodes();
     partial void OnEncodeGammaChanged(bool value) => _ = ApplyOpcodes();
+    partial void OnApplyColorTransformChanged(bool value) => _ = ApplyOpcodes();
+    partial void OnProcessAtFullResolutionChanged(bool value)
+    {
+        if (_originalImage == null) return;
+        Mouse.OverrideCursor = Cursors.Wait;
+        try { RebuildWorkingImage(); }
+        finally { Mouse.OverrideCursor = null; }
+        _ = ApplyOpcodes();
+    }
     [RelayCommand]
     public async Task ApplyOpcodes()
     {
@@ -336,6 +402,8 @@ public partial class MainWindowVM : ObservableObject
                 var dst = ImgSrc.Clone();
                 var ops = Opcodes.Where(o => o.Enabled).ToArray();
                 bool decode = DecodeGamma, encode = EncodeGamma;
+                bool doColorTransform = ApplyColorTransform && ColorInfo != null;
+                var cameraToSrgb = ColorInfo?.CameraToSrgb;
                 string error = null;
                 var sw = Stopwatch.StartNew();
                 // The pixel work touches only the managed pixel buffer, so it
@@ -349,6 +417,10 @@ public partial class MainWindowVM : ObservableObject
                             OpcodesImplementation.ApplyGamma(dst, 2.2f);
                         foreach (var op in ops)
                             OpcodesImplementation.Apply(dst, op);
+                        // DNG-spec opcodes run on camera-native RGB; convert
+                        // to linear sRGB once the chain has finished.
+                        if (doColorTransform)
+                            ColorTransform.Apply(dst, cameraToSrgb);
                         if (encode)
                             OpcodesImplementation.ApplyGamma(dst, 1.0f / 2.2f);
                     }

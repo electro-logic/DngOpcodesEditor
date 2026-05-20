@@ -105,16 +105,29 @@ public static class Program
     static int Preview(string[] args)
     {
         if (args.Length < 4)
-            return Usage("preview <input.dng|tiff> <list.bin> <output.tiff> [--decode-input-gamma] [--no-encode-gamma]");
+            return Usage("preview <input.dng|tiff> <list.bin> <output.tiff> [--decode-input-gamma] [--no-encode-gamma] [--raw-colors] [--max-dimension N]");
         var input = args[1];
         var listFile = args[2];
         var output = args[3];
         bool encodeGamma = !ArgsContain(args, "--no-encode-gamma");
         bool decodeGamma = ArgsContain(args, "--decode-input-gamma");
+        bool rawColors = ArgsContain(args, "--raw-colors");
+        int maxDimension = ParseIntArg(args, "--max-dimension", 0);
 
         Console.WriteLine($"Opening {input}…");
-        var buffer = DngRawReader.Read(File.ReadAllBytes(input));
+        var inputBytes = File.ReadAllBytes(input);
+        var buffer = DngRawReader.Read(inputBytes);
         Console.WriteLine($"  {buffer.Width}x{buffer.Height} pixels");
+
+        if (maxDimension > 0 && (buffer.Width > maxDimension || buffer.Height > maxDimension))
+        {
+            buffer = buffer.Resize(maxDimension, maxDimension);
+            Console.WriteLine($"  resized to {buffer.Width}x{buffer.Height}");
+        }
+
+        var colorInfo = rawColors ? null : DngColorInfo.TryRead(inputBytes);
+        if (colorInfo != null)
+            Console.WriteLine("  found AsShotNeutral + ColorMatrix; will apply colour transform");
 
         if (decodeGamma)
         {
@@ -131,6 +144,11 @@ public static class Program
             Console.WriteLine($"  applying [{i,2}] {opcodes[i].header.id}…");
             OpcodesImplementation.Apply(buffer, opcodes[i]);
         }
+        if (colorInfo != null)
+        {
+            Console.WriteLine("Applying DNG colour transform…");
+            ColorTransform.Apply(buffer, colorInfo.CameraToSrgb);
+        }
         if (encodeGamma)
         {
             Console.WriteLine("Encoding output gamma (2.2)…");
@@ -141,6 +159,15 @@ public static class Program
         TiffWriter.WriteRgb16(buffer, output);
         Console.WriteLine("Done.");
         return 0;
+    }
+
+    static int ParseIntArg(string[] args, string flag, int defaultValue)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+            if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(args[i + 1], out int v))
+                return v;
+        return defaultValue;
     }
 
     static int Help()
@@ -184,6 +211,8 @@ Commands:
   preview   <input.dng|tiff> <list.bin> <output.tiff>    Apply an opcode list to an image and write a 16-bit RGB TIFF.
               [--decode-input-gamma]                       Apply a 2.2 gamma decode to the input first (use for gamma-encoded TIFF/PNG sources).
               [--no-encode-gamma]                          Skip the final 1/2.2 gamma encode (leave the TIFF linear).
+              [--raw-colors]                               Skip the DNG colour transform (keep camera-native RGB).
+              [--max-dimension N]                          Downsample so the longest side fits within N pixels.
   help                                                   Show this help.
 ");
     }

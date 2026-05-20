@@ -84,6 +84,7 @@
                         <Setter Property="Padding" Value="5" />
                     </Style>
                 </StackPanel.Resources>
+                <Button Content="Open DNG (image + opcodes)" Command="{Binding OpenDngWithOpcodesCommand}" FontWeight="Bold" />
                 <Button Content="Import from DNG" Command="{Binding ImportDngCommand}" />
                 <Button Content="Import from Binary" Command="{Binding ImportBinCommand}" />
                 <Button Content="Export to DNG" Command="{Binding ExportDngCommand}" />
@@ -105,6 +106,10 @@
         <StackPanel Grid.Row="4" Orientation="Horizontal">
             <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input Gamma" />
             <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output Gamma" Margin="5,0,0,0" />
+            <CheckBox IsChecked="{Binding ApplyColorTransform,Mode=TwoWay}" Content="Apply DNG Color Transform" Margin="20,0,0,0"
+                      ToolTip="White balance + ColorMatrix from the DNG (AsShotNeutral and ColorMatrix2)" />
+            <CheckBox IsChecked="{Binding ProcessAtFullResolution,Mode=TwoWay}" Content="Process at full resolution" Margin="20,0,0,0"
+                      ToolTip="By default the preview is downsampled to FHD (1920x1080) for responsiveness on large DNGs" />
         </StackPanel>
         
     </Grid>
