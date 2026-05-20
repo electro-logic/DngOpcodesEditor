@@ -105,6 +105,11 @@ public partial class Image : PixelBuffer
         clone._height = _height;
         clone._bmpRgba64 = _bmpRgba64.Clone();
         clone._bmpDisplay = _bmpDisplay.Clone();
+        // Propagate the displayed bitmap to the observable property so anything
+        // bound to ImgSrc.Bmp / ImgDst.Bmp paints immediately on a clone — without
+        // this, RebuildWorkingImage's small-image path (`ImgSrc = original.Clone()`)
+        // would leave the WPF preview blank until something later triggers Update().
+        clone.Bmp = clone._bmpDisplay;
         return clone;
     }
     public void SaveImage(string filename)

@@ -20,21 +20,24 @@ namespace DngOpcodesEditor
             _ = ViewModel.ApplyOpcodes();
         }
 
-        // 640x480 graph-paper grid styled after the original bundled
-        // grid.tiff: 10x10 cells of 64x48 px, mid-grey background, white
-        // 4-px gridlines on every cell boundary, and a 20-px dark-grey
-        // frame around the perimeter. 16-bit values are 8-bit greys
-        // expanded by replicating the byte into both halves of the ushort.
+        // 640x480 reference grid: 10x10 cells of 64x48 px on a *synthetic
+        // vignette* gradient (bright at the centre, ~50% at the corners) so
+        // the FixVignetteRadial demo opcode (k0 = 1.0, gain = 1 + r²) has
+        // something visible to flatten. White 4-px gridlines on every cell
+        // boundary, and a 20-px dark-grey frame around the perimeter.
         static PixelBuffer BuildReferenceGrid(int width, int height)
         {
             const int cellW       = 64;
             const int cellH       = 48;
             const int lineThick   = 4;
             const int borderThick = 20;
-            const ushort BG     = (114 << 8) | 114;
+            const double peak     = 220.0; // background brightness at centre (8-bit)
             const ushort LINE   = (255 << 8) | 255;
             const ushort BORDER = (40  << 8) |  40;
 
+            double cx = (width - 1) / 2.0;
+            double cy = (height - 1) / 2.0;
+            double maxR2 = cx * cx + cy * cy;
             var pixels = new ulong[width * height];
             for (int y = 0; y < height; y++)
             {
@@ -43,7 +46,24 @@ namespace DngOpcodesEditor
                     bool onBorder = x < borderThick || x >= width - borderThick
                                  || y < borderThick || y >= height - borderThick;
                     bool onLine   = x % cellW < lineThick || y % cellH < lineThick;
-                    ushort v = onBorder ? BORDER : onLine ? LINE : BG;
+                    ushort v;
+                    if (onBorder)
+                    {
+                        v = BORDER;
+                    }
+                    else if (onLine)
+                    {
+                        v = LINE;
+                    }
+                    else
+                    {
+                        // Radial falloff: 1.0 at the centre, 0.5 at the corners.
+                        double dx = x - cx, dy = y - cy;
+                        double r2 = (dx * dx + dy * dy) / maxR2;
+                        double brightness = peak * (1.0 - 0.5 * r2);
+                        int b8 = (int)Math.Round(Math.Clamp(brightness, 0, 255));
+                        v = (ushort)((b8 << 8) | b8);
+                    }
                     pixels[x + y * width] = v | ((ulong)v << 16) | ((ulong)v << 32) | (65535UL << 48);
                 }
             }
@@ -60,7 +80,9 @@ namespace DngOpcodesEditor
         {
             var vignette = new OpcodeFixVignetteRadial { k0 = 1.0, cx = 0.5, cy = 0.5 };
             vignette.header.id = OpcodeId.FixVignetteRadial;
-            vignette.ListIndex = 2;
+            // List 3 (not 2): list-2 opcodes are skipped by the preview
+            // pipeline because they're meant for pre-demosaic CFA data.
+            vignette.ListIndex = 3;
             ViewModel.Opcodes.Add(vignette);
 
             var warp = new OpcodeWarpRectilinear
