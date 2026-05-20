@@ -16,7 +16,7 @@ namespace DngOpcodesEditor;
 //     supported.
 //   - The output formatter then either demosaics (CFA, photometric 32803)
 //     or unpacks the interleaved RGB samples (LinearRaw, photometric 34892).
-public static class DngRawReader
+public static partial class DngRawReader
 {
     delegate ushort[] SampleDecoder(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE);
 
@@ -352,10 +352,21 @@ public static class DngRawReader
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"OpcodeList2 parse failed: {ex.Message}"); return; }
         foreach (var op in opcodes)
         {
-            if (op is OpcodeGainMap g)
-                ApplyGainMapToCfa(samples, W, H, g);
-            else
-                System.Diagnostics.Debug.WriteLine($"OpcodeList2 {op.header.id} on CFA not implemented; skipped.");
+            switch (op)
+            {
+                case OpcodeGainMap g:               ApplyGainMapToCfa(samples, W, H, g);            break;
+                case OpcodeMapTable mt:             ApplyMapTableToCfa(samples, W, H, mt);          break;
+                case OpcodeMapPolynomial mp:        ApplyMapPolynomialToCfa(samples, W, H, mp);     break;
+                case OpcodeDeltaPerRow dr:          ApplyDeltaPerRowToCfa(samples, W, H, dr);       break;
+                case OpcodeDeltaPerColumn dc:       ApplyDeltaPerColumnToCfa(samples, W, H, dc);    break;
+                case OpcodeScalePerRow sr:          ApplyScalePerRowToCfa(samples, W, H, sr);       break;
+                case OpcodeScalePerColumn sc:       ApplyScalePerColumnToCfa(samples, W, H, sc);    break;
+                case OpcodeFixBadPixelsConstant c:  ApplyFixBadPixelsConstantToCfa(samples, W, H, c); break;
+                case OpcodeFixBadPixelsList l:      ApplyFixBadPixelsListToCfa(samples, W, H, l);   break;
+                default:
+                    System.Diagnostics.Debug.WriteLine($"OpcodeList2 {op.header.id} on CFA not implemented; skipped.");
+                    break;
+            }
         }
     }
 
