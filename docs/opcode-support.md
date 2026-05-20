@@ -29,7 +29,7 @@ Each opcode lives in its own file under `Core/Opcodes/<Name>.cs` (parts of a sin
 | 11 | DeltaPerColumn          |  ✓   |   ✓   |    ✓    | As above, columns. |
 | 12 | ScalePerRow             |  ✓   |   ✓   |    ✓    | Multiplicative gain per row. |
 | 13 | ScalePerColumn          |  ✓   |   ✓   |    ✓    | As above, columns. |
-| 14 | WarpRectilinear2        |  ◐   |   ✗   |    ✗    | Tag id known; payload is read as raw bytes and round-trips as zeros. Introduced in DNG 1.6 to support per-channel rectilinear warps with a different parameterisation. |
+| 14 | WarpRectilinear2        |  ✓   |   ✓   |    ✓    | DNG 1.6 per-channel rectilinear warp. Up-to-order-14 radial polynomial with both odd & even powers, optional valid-radius clamp, optional reciprocal-radial mode. Skip-rule honoured (an optional WR2 silences the next WarpRectilinear / WarpFisheye in the same list). |
 
 ## What's in the `Samples/` folder
 
@@ -72,7 +72,6 @@ These are opcodes the editor can read / write / preview, but for which we have *
 | `MapPolynomial` | Same converters; sometimes used for monochrome / scientific cameras. |
 | `DeltaPerRow` / `DeltaPerColumn` | Sensor-row banding correction. Common in dark-frame-calibrated astrophotography DNGs. |
 | `ScalePerRow` / `ScalePerColumn` | Per-row PRNU correction. Astro / industrial. |
-| `WarpRectilinear2` | DNGs produced by recent Adobe profiles (DNG 1.6+) for multi-plane warps. |
 
 A practical way to source these:
 
@@ -115,7 +114,7 @@ A broader picture across opcodes, infrastructure, display, and UX. Items are rou
 
 ### Opcode completeness
 
-1. **`WarpRectilinear2` (id 14)** — DNG 1.6+ per-channel rectilinear warp with a different parameterisation than `WarpRectilinear`. Currently we recognise the tag id and round-trip its payload as raw bytes (◐ in the coverage matrix), but there's no parsing into a typed object and no preview implementation. Adobe profiles from recent DNG Converter versions write this. *Need: a sample DNG to validate against, then port the Brown-Conrady-style parsing already done for `WarpRectilinear`.*
+1. ~~`WarpRectilinear2` (id 14)~~ — **Done in 0.9.1.** DNG 1.6 per-channel rectilinear warp, up-to-order-14 radial polynomial (odd + even powers), optional reciprocal-radial mode, plus the spec's "skip rule" (an optional WR2 silences the next WarpRectilinear / WarpFisheye in the same list).
 2. **OpcodeList2 on CFA — opcodes beyond `GainMap`.** `DngRawReader` now applies L2 `GainMap` opcodes to the linearised CFA before demosaicing (released in 0.8.9), but the other L2-eligible opcodes (`FixBadPixels{Constant,List}`, `MapTable`, `MapPolynomial`, `Delta{Row,Col}`, `Scale{Row,Col}`) are still skipped at decode with a debug log. None of the bundled samples exercise them, so the right move is to wait for a real-world DNG that does and then mirror the GainMap-on-CFA work.
 3. **Live editing of L2 opcodes affects the preview.** Today, because L2 is baked in during `DngRawReader.Read`, toggling an L2 opcode's `Enabled` flag or changing its parameters in the UI does nothing until you reload the file. Wiring an "L2 dirty → re-decode" path would close this gap — `MainWindowVM` already has `_originalImage`, so it's an extra clone-from-bytes step rather than a full reload.
 

@@ -159,6 +159,41 @@ public class OpcodeWarpRectilinear : Opcode
     public double cx = 0.5;
     public double cy = 0.5;
 }
+// DNG 1.6 per-channel rectilinear warp — extends WarpRectilinear with up-to-
+// 14-order radial coefficients (odd AND even powers), an optional valid-radius
+// clamp, and a reciprocal-radial mode.
+//
+// Binary layout (per the DNG 1.7.1 spec / Adobe DNG SDK):
+//   uint32 planes (N)
+//   for each plane:
+//     real64 kr[0..14]        15 radial coefficients
+//     real64 kt[0..1]         2  tangential coefficients
+//     real64 minValidRadius
+//     real64 maxValidRadius
+//   real64 cx
+//   real64 cy
+//   uint32 useReciprocal
+public class OpcodeWarpRectilinear2 : Opcode
+{
+    public const int RadialTermsPerPlane     = 15; // k0..k14
+    public const int TangentialTermsPerPlane = 2;  // t0, t1
+    public const int ValidRangeTermsPerPlane = 2;  // min, max
+    public const int TermsPerPlane =
+        RadialTermsPerPlane + TangentialTermsPerPlane + ValidRangeTermsPerPlane; // 19 doubles
+
+    public UInt32 planes = 1;
+    // Flat: [plane * 15 + k] for k in 0..14
+    public double[] radialCoefficients = new double[RadialTermsPerPlane] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    // Flat: [plane * 2 + t] for t in 0..1
+    public double[] tangentialCoefficients = new double[TangentialTermsPerPlane];
+    // Flat: [plane * 2 + 0] = min, [plane * 2 + 1] = max
+    public double[] validRadiusRange = new double[ValidRangeTermsPerPlane] { 0.0, 1.0 };
+    public double cx = 0.5;
+    public double cy = 0.5;
+    // When false, ratio(r) = poly(clamp(r, min, max)); when true, ratio(r) =
+    // poly(clamp(1/r, min, max)) — useful for matching another lens's FOV.
+    public bool useReciprocal;
+}
 public class OpcodeWarpFisheye : Opcode
 {
     public UInt32 planes;

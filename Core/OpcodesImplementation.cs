@@ -29,6 +29,7 @@ public static partial class OpcodesImplementation
         switch (opcode.header.id)
         {
             case OpcodeId.WarpRectilinear: WarpRectilinear(img, (OpcodeWarpRectilinear)opcode); break;
+            case OpcodeId.WarpRectilinear2: WarpRectilinear2(img, (OpcodeWarpRectilinear2)opcode); break;
             case OpcodeId.WarpFisheye: WarpFisheye(img, (OpcodeWarpFisheye)opcode); break;
             case OpcodeId.FixVignetteRadial: FixVignetteRadial(img, (OpcodeFixVignetteRadial)opcode); break;
             case OpcodeId.FixBadPixelsConstant: FixBadPixelsConstant(img, (OpcodeFixBadPixelsConstant)opcode); break;
@@ -44,6 +45,33 @@ public static partial class OpcodesImplementation
             default: Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped"); break;
         }
     }
+    // Per the DNG 1.6 spec: when a WarpRectilinear2 opcode is marked Optional,
+    // a reader that *does* support it should skip the *immediately following*
+    // WarpRectilinear or WarpFisheye opcode in the same list. This lets a
+    // writer pack a high-fidelity warp (WarpRectilinear2, DNG 1.6) plus a
+    // baseline fallback (WarpRectilinear / WarpFisheye, DNG 1.3) into the
+    // same list — modern readers use the better one, older readers fall back.
+    //
+    // Returns the input list with the fall-through warps filtered out.
+    public static System.Collections.Generic.IList<Opcode> ApplyWarpRectilinear2SkipRule(System.Collections.Generic.IList<Opcode> opcodes)
+    {
+        if (opcodes == null || opcodes.Count < 2) return opcodes;
+        var result = new System.Collections.Generic.List<Opcode>(opcodes.Count);
+        for (int i = 0; i < opcodes.Count; i++)
+        {
+            result.Add(opcodes[i]);
+            bool isOptionalWR2 = opcodes[i].header.id == OpcodeId.WarpRectilinear2
+                              && (opcodes[i].header.flags & OpcodeFlag.Optional) == OpcodeFlag.Optional;
+            if (isOptionalWR2 && i + 1 < opcodes.Count)
+            {
+                var nextId = opcodes[i + 1].header.id;
+                if (nextId == OpcodeId.WarpRectilinear || nextId == OpcodeId.WarpFisheye)
+                    i++; // skip the fallback warp
+            }
+        }
+        return result;
+    }
+
     // Raises every pixel value to the given exponent (in normalized [0,1] space).
     // Used to switch between gamma-encoded and linear representations using a
     // pure power curve.

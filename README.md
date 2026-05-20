@@ -41,8 +41,9 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 | 11 | DeltaPerColumn          |  ✓   |   ✓   |    ✓    |
 | 12 | ScalePerRow             |  ✓   |   ✓   |    ✓    |
 | 13 | ScalePerColumn          |  ✓   |   ✓   |    ✓    |
+| 14 | WarpRectilinear2        |  ✓   |   ✓   |    ✓    |
 
-`WarpRectilinear` and `WarpFisheye` both support multi-plane warps (chromatic-aberration correction) and bicubic resampling.
+`WarpRectilinear` and `WarpFisheye` both support multi-plane warps (chromatic-aberration correction) and bicubic resampling. `WarpRectilinear2` (DNG 1.6+) adds odd-power radial terms up to order 14 and an optional reciprocal-radial mode.
 
 `FixBadPixels*` and the region opcodes are designed for raw CFA data; on a demosaiced RGB preview they are approximated.
 

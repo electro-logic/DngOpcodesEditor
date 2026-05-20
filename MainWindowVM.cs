@@ -471,7 +471,16 @@ public partial class MainWindowVM : ObservableObject
                 // the UI therefore has no effect on the preview without
                 // reloading the file — a known limitation, documented in the
                 // README.
-                var ops = Opcodes.Where(o => o.Enabled && o.ListIndex != 2).ToArray();
+                // Filter to enabled non-L2 opcodes, then within each list apply
+                // the DNG 1.6 skip rule: an optional WarpRectilinear2 silences
+                // the WarpRectilinear / WarpFisheye that *immediately* follows
+                // it. Group by list, apply per group, concat in 1 -> 3 order.
+                var ops = Opcodes
+                    .Where(o => o.Enabled && o.ListIndex != 2)
+                    .GroupBy(o => o.ListIndex)
+                    .OrderBy(g => g.Key)
+                    .SelectMany(g => OpcodesImplementation.ApplyWarpRectilinear2SkipRule(g.ToList()))
+                    .ToArray();
                 bool decode = DecodeGamma, encode = EncodeGamma;
                 bool doColorTransform = ApplyColorTransform && ColorInfo != null;
                 var cameraToSrgb = ColorInfo?.CameraToSrgb;

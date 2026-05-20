@@ -21,6 +21,9 @@ public class OpcodesWriter
                 case OpcodeId.WarpFisheye:
                     WarpFisheye(op as OpcodeWarpFisheye);
                     break;
+                case OpcodeId.WarpRectilinear2:
+                    WarpRectilinear2(op as OpcodeWarpRectilinear2);
+                    break;
                 case OpcodeId.FixVignetteRadial:
                     FixVignetteRadial(op as OpcodeFixVignetteRadial);
                     break;
@@ -91,6 +94,26 @@ public class OpcodesWriter
             _ms.WriteDouble(coefficient);
         _ms.WriteDouble(p.cx);
         _ms.WriteDouble(p.cy);
+    }
+    public void WarpRectilinear2(OpcodeWarpRectilinear2 p)
+    {
+        int planes = (int)p.planes;
+        // Layout: 4 (planes) + 19 doubles * planes + 16 (cx,cy) + 4 (useReciprocal)
+        UInt32 size = (UInt32)(4 + planes * 8 * OpcodeWarpRectilinear2.TermsPerPlane + 16 + 4);
+        WriteOpcodeHeader(p.header, size);
+        _ms.WriteUInt32(p.planes);
+        for (int plane = 0; plane < planes; plane++)
+        {
+            for (int k = 0; k < OpcodeWarpRectilinear2.RadialTermsPerPlane; k++)
+                _ms.WriteDouble(p.radialCoefficients[plane * OpcodeWarpRectilinear2.RadialTermsPerPlane + k]);
+            _ms.WriteDouble(p.tangentialCoefficients[plane * 2 + 0]);
+            _ms.WriteDouble(p.tangentialCoefficients[plane * 2 + 1]);
+            _ms.WriteDouble(p.validRadiusRange[plane * 2 + 0]);
+            _ms.WriteDouble(p.validRadiusRange[plane * 2 + 1]);
+        }
+        _ms.WriteDouble(p.cx);
+        _ms.WriteDouble(p.cy);
+        _ms.WriteUInt32(p.useReciprocal ? 1u : 0u);
     }
     public void WarpFisheye(OpcodeWarpFisheye p)
     {

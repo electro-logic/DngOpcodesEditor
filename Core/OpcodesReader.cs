@@ -67,6 +67,29 @@ public class OpcodesReader
         result.cy = _ms.ReadDouble();
         return result;
     }
+    OpcodeWarpRectilinear2 ReadWarpRectilinear2(OpcodeHeader header)
+    {
+        var result = new OpcodeWarpRectilinear2();
+        result.header = header;
+        result.planes = _ms.ReadUInt32();
+        int planes = (int)result.planes;
+        result.radialCoefficients     = new double[planes * OpcodeWarpRectilinear2.RadialTermsPerPlane];
+        result.tangentialCoefficients = new double[planes * OpcodeWarpRectilinear2.TangentialTermsPerPlane];
+        result.validRadiusRange       = new double[planes * OpcodeWarpRectilinear2.ValidRangeTermsPerPlane];
+        for (int plane = 0; plane < planes; plane++)
+        {
+            for (int k = 0; k < OpcodeWarpRectilinear2.RadialTermsPerPlane; k++)
+                result.radialCoefficients[plane * OpcodeWarpRectilinear2.RadialTermsPerPlane + k] = _ms.ReadDouble();
+            result.tangentialCoefficients[plane * 2 + 0] = _ms.ReadDouble();
+            result.tangentialCoefficients[plane * 2 + 1] = _ms.ReadDouble();
+            result.validRadiusRange[plane * 2 + 0] = _ms.ReadDouble();
+            result.validRadiusRange[plane * 2 + 1] = _ms.ReadDouble();
+        }
+        result.cx = _ms.ReadDouble();
+        result.cy = _ms.ReadDouble();
+        result.useReciprocal = _ms.ReadUInt32() != 0;
+        return result;
+    }
     OpcodeWarpFisheye ReadWarpFisheye(OpcodeHeader header)
     {
         var result = new OpcodeWarpFisheye();
@@ -190,6 +213,9 @@ public class OpcodesReader
                 break;
             case OpcodeId.WarpFisheye:
                 result = ReadWarpFisheye(header);
+                break;
+            case OpcodeId.WarpRectilinear2:
+                result = ReadWarpRectilinear2(header);
                 break;
             case OpcodeId.FixVignetteRadial:
                 result = ReadFixVignetteRadial(header);
