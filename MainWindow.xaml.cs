@@ -40,12 +40,13 @@ namespace DngOpcodesEditor
         // Matches the parameters of the original `Samples/*.bin` files so the
         // visual demo at startup is unchanged: a vignette gain that doubles
         // the corners (k0 = 1.0) plus a mild Brown–Conrady rectilinear warp.
+        // dngVersion / flags fall back to the OpcodeHeader defaults
+        // (DNG_VERSION_1_3_0_0 / OptionalPreview) — fine for synthesised
+        // opcodes.
         void AddDemoOpcodes()
         {
             var vignette = new OpcodeFixVignetteRadial { k0 = 1.0, cx = 0.5, cy = 0.5 };
             vignette.header.id = OpcodeId.FixVignetteRadial;
-            vignette.header.dngVersion = 0x00000103;
-            vignette.header.flags = 2;
             vignette.ListIndex = 2;
             ViewModel.Opcodes.Add(vignette);
 
@@ -57,8 +58,6 @@ namespace DngOpcodesEditor
                 cy = 0.5,
             };
             warp.header.id = OpcodeId.WarpRectilinear;
-            warp.header.dngVersion = 0x00000103;
-            warp.header.flags = 2;
             warp.ListIndex = 3;
             ViewModel.Opcodes.Add(warp);
         }
