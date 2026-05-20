@@ -5,20 +5,21 @@ using System.Threading.Tasks;
 
 namespace DngOpcodesEditor;
 
-// Reads a raw Bayer-CFA DNG and produces a demosaiced 16-bit linear RGB
-// PixelBuffer, removing the need to develop the file with dcraw_emu first.
+// Reads raw DNG images and returns a 16-bit linear RGB PixelBuffer ready for
+// the opcode pipeline. No external dependency on dcraw_emu is required.
 //
-// Scope of this initial implementation:
-//   - Uncompressed (Compression = 1) DNGs only. Most modern DNGs use Lossless
-//     JPEG (Compression = 7) which would require a Huffman decoder.
-//   - Strip-based layout (StripOffsets / StripByteCounts). Tiled layouts
-//     (TileOffsets / TileByteCounts) are not handled here.
-//   - 16-bit storage per sample (the typical case for uncompressed DNG raw).
-//   - 2x2 CFA pattern (RGGB / GRBG / GBRG / BGGR).
-//   - Bilinear demosaic. Good enough for previewing opcodes; not a
-//     production-quality demosaicer.
+// The reader is layered:
+//   - LoadSamples() handles file layout (strip vs tile) and produces a flat
+//     ushort[] of width * height * samplesPerPixel values in row-major order.
+//   - Per-strip / per-tile bytes go through a decoder delegate that returns
+//     ushort samples. Uncompressed and Lossless JPEG (compression 7) are
+//     supported.
+//   - The output formatter then either demosaics (CFA, photometric 32803)
+//     or unpacks the interleaved RGB samples (LinearRaw, photometric 34892).
 public static class DngRawReader
 {
+    delegate ushort[] SampleDecoder(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE);
+
     public static PixelBuffer Read(byte[] tiff)
     {
         var (isLE, firstIfd) = TiffFile.ReadHeader(tiff);
@@ -27,7 +28,7 @@ public static class DngRawReader
             if (IsRawIfd(tiff, isLE, (int)ifd))
                 return ReadRawFromIfd(tiff, isLE, (int)ifd);
         }
-        throw new InvalidDataException("No raw image IFD (PhotometricInterpretation = CFA) found in the file.");
+        throw new InvalidDataException("No raw image IFD (PhotometricInterpretation = CFA or LinearRaw) found in the file.");
     }
 
     static bool IsRawIfd(byte[] tiff, bool isLE, int ifd)
@@ -47,55 +48,156 @@ public static class DngRawReader
         int width = (int)RequiredTag(tiff, isLE, ifd, 256);
         int height = (int)RequiredTag(tiff, isLE, ifd, 257);
         uint compression = OptionalTag(tiff, isLE, ifd, 259, 1);
-        if (compression != 1)
-            throw new NotSupportedException(
-                $"Compression {compression} is not supported. " +
-                "Only uncompressed (compression=1) DNGs can be opened directly; " +
-                "develop compressed DNGs to a linear TIFF first (for example with dcraw_emu).");
         uint photometric = RequiredTag(tiff, isLE, ifd, 262);
-        if (photometric == 34892)
-            throw new NotSupportedException("LinearRaw DNGs (already demosaiced) are not supported yet.");
+        int bitsPerSample = (int)OptionalTag(tiff, isLE, ifd, 258, 16);
+        // CFA = one sample per pixel; LinearRaw defaults to three interleaved.
+        int samplesPerPixel = (int)OptionalTag(tiff, isLE, ifd, 277, photometric == 34892 ? 3u : 1u);
 
-        uint bitsPerSample = OptionalTag(tiff, isLE, ifd, 258, 16);
+        SampleDecoder decoder = compression switch
+        {
+            1 => DecodeUncompressed,
+            7 => DecodeLosslessJpeg,
+            _ => throw new NotSupportedException(
+                $"Compression {compression} is not supported. " +
+                "Only uncompressed (1) and Lossless JPEG (7) DNGs are handled directly.")
+        };
 
+        var samples = LoadSamples(tiff, isLE, ifd, width, height, samplesPerPixel, bitsPerSample, decoder);
+
+        var blackLevels = ReadBlackLevels(tiff, isLE, ifd);
+        uint whiteLevel = OptionalTag(tiff, isLE, ifd, 50717, (uint)((1u << bitsPerSample) - 1));
+
+        var rgb = new UInt64[width * height];
+        if (photometric == 32803)
+        {
+            var cfaPattern = ReadCfaPattern(tiff, isLE, ifd);
+            BilinearDemosaic(samples, rgb, width, height, cfaPattern, blackLevels, whiteLevel);
+        }
+        else // 34892 LinearRaw
+        {
+            UnpackLinearRaw(samples, rgb, width, height, samplesPerPixel, blackLevels, whiteLevel);
+        }
+        return new PixelBuffer(rgb, width, height);
+    }
+
+    // --- Sample loading: strip vs tile ---------------------------------------
+
+    static ushort[] LoadSamples(byte[] tiff, bool isLE, int ifd, int width, int height,
+        int samplesPerPixel, int bitsPerSample, SampleDecoder decoder)
+    {
+        int totalSamples = width * height * samplesPerPixel;
+        var samples = new ushort[totalSamples];
+
+        bool tiled = TiffFile.FindEntryPublic(tiff, isLE, ifd, 322) >= 0;
+        if (tiled)
+            LoadFromTiles(tiff, isLE, ifd, width, height, samplesPerPixel, bitsPerSample, decoder, samples);
+        else
+            LoadFromStrips(tiff, isLE, ifd, width, height, samplesPerPixel, bitsPerSample, decoder, samples);
+        return samples;
+    }
+
+    static void LoadFromStrips(byte[] tiff, bool isLE, int ifd, int width, int height,
+        int spp, int bps, SampleDecoder decoder, ushort[] samples)
+    {
         int stripOffsetsEntry = TiffFile.FindEntryPublic(tiff, isLE, ifd, 273);
         int stripCountsEntry = TiffFile.FindEntryPublic(tiff, isLE, ifd, 279);
         if (stripOffsetsEntry < 0 || stripCountsEntry < 0)
-            throw new NotSupportedException("Tiled raw layout is not supported yet — only strip-based DNGs.");
+            throw new InvalidDataException("Strip-based DNG is missing StripOffsets/StripByteCounts.");
         uint rowsPerStrip = OptionalTag(tiff, isLE, ifd, 278, (uint)height);
         var stripOffsets = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, stripOffsetsEntry);
+        var stripByteCounts = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, stripCountsEntry);
 
-        // Black / white level. BlackLevel can be per CFA position (count = 4).
-        var blackLevels = ReadBlackLevels(tiff, isLE, ifd);
-        uint whiteLevel = OptionalTag(tiff, isLE, ifd, 50717, (uint)((1u << (int)bitsPerSample) - 1));
-
-        // CFA pattern: 4-byte array, values 0=R, 1=G, 2=B. Default to RGGB.
-        var cfaPattern = ReadCfaPattern(tiff, isLE, ifd);
-
-        // Read the CFA samples as 16-bit values.
-        var raw = new ushort[width * height];
         int rowsRead = 0;
         for (int s = 0; s < stripOffsets.Length; s++)
         {
             int stripRows = Math.Min((int)rowsPerStrip, height - rowsRead);
-            int stripStart = (int)stripOffsets[s];
-            for (int row = 0; row < stripRows; row++)
-            {
-                int rowOffset = stripStart + row * width * 2;
-                for (int x = 0; x < width; x++)
-                {
-                    raw[(rowsRead + row) * width + x] = isLE
-                        ? BinaryPrimitives.ReadUInt16LittleEndian(tiff.AsSpan(rowOffset + x * 2))
-                        : BinaryPrimitives.ReadUInt16BigEndian(tiff.AsSpan(rowOffset + x * 2));
-                }
-            }
+            int byteOff = (int)stripOffsets[s];
+            int byteCount = (int)stripByteCounts[s];
+            var stripSamples = decoder(tiff, byteOff, byteCount, bps, isLE);
+            int rowSamples = width * spp;
+            int dstOff = rowsRead * rowSamples;
+            int copyLength = Math.Min(stripSamples.Length, stripRows * rowSamples);
+            Array.Copy(stripSamples, 0, samples, dstOff, copyLength);
             rowsRead += stripRows;
         }
-
-        var rgb = new UInt64[width * height];
-        BilinearDemosaic(raw, rgb, width, height, cfaPattern, blackLevels, whiteLevel);
-        return new PixelBuffer(rgb, width, height);
     }
+
+    static void LoadFromTiles(byte[] tiff, bool isLE, int ifd, int width, int height,
+        int spp, int bps, SampleDecoder decoder, ushort[] samples)
+    {
+        int tileW = (int)RequiredTag(tiff, isLE, ifd, 322);
+        int tileH = (int)RequiredTag(tiff, isLE, ifd, 323);
+        int tileOffsetsEntry = TiffFile.FindEntryPublic(tiff, isLE, ifd, 324);
+        int tileCountsEntry = TiffFile.FindEntryPublic(tiff, isLE, ifd, 325);
+        if (tileOffsetsEntry < 0 || tileCountsEntry < 0)
+            throw new InvalidDataException("Tiled DNG is missing TileOffsets/TileByteCounts.");
+        var tileOffsets = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, tileOffsetsEntry);
+        var tileByteCounts = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, tileCountsEntry);
+
+        int tilesAcross = (width + tileW - 1) / tileW;
+        int tilesDown = (height + tileH - 1) / tileH;
+        int tileRowSamples = tileW * spp;
+        int dstRowSamples = width * spp;
+
+        for (int ty = 0; ty < tilesDown; ty++)
+        {
+            for (int tx = 0; tx < tilesAcross; tx++)
+            {
+                int idx = ty * tilesAcross + tx;
+                int byteOff = (int)tileOffsets[idx];
+                int byteCount = (int)tileByteCounts[idx];
+                var tileSamples = decoder(tiff, byteOff, byteCount, bps, isLE);
+
+                int xStart = tx * tileW;
+                int yStart = ty * tileH;
+                int copyCols = Math.Min(tileW, width - xStart);
+                int copyRows = Math.Min(tileH, height - yStart);
+                for (int ly = 0; ly < copyRows; ly++)
+                {
+                    int srcOff = ly * tileRowSamples;
+                    int dstOff = (yStart + ly) * dstRowSamples + xStart * spp;
+                    Array.Copy(tileSamples, srcOff, samples, dstOff, copyCols * spp);
+                }
+            }
+        }
+    }
+
+    // --- Per-strip / per-tile decoders --------------------------------------
+
+    static ushort[] DecodeUncompressed(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE)
+    {
+        if (bitsPerSample == 16)
+        {
+            int count = byteCount / 2;
+            var result = new ushort[count];
+            for (int i = 0; i < count; i++)
+                result[i] = isLE
+                    ? BinaryPrimitives.ReadUInt16LittleEndian(file.AsSpan(offset + i * 2))
+                    : BinaryPrimitives.ReadUInt16BigEndian(file.AsSpan(offset + i * 2));
+            return result;
+        }
+        if (bitsPerSample == 8)
+        {
+            var result = new ushort[byteCount];
+            for (int i = 0; i < byteCount; i++)
+                // Left-shift to use the full 16-bit range so the rest of the
+                // pipeline can treat 8-bit and 16-bit data uniformly.
+                result[i] = (ushort)(file[offset + i] << 8);
+            return result;
+        }
+        throw new NotSupportedException($"Uncompressed BitsPerSample = {bitsPerSample} is not supported (8 or 16 only).");
+    }
+
+    static ushort[] DecodeLosslessJpeg(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE)
+    {
+        // The TIFF byte-order does not apply inside a JPEG stream; LJPEG is
+        // big-endian by spec, the decoder handles that internally.
+        var jpegBytes = new byte[byteCount];
+        Buffer.BlockCopy(file, offset, jpegBytes, 0, byteCount);
+        return LosslessJpegDecoder.Decode(jpegBytes, out _, out _, out _, out _);
+    }
+
+    // --- Tag helpers ---------------------------------------------------------
 
     static uint RequiredTag(byte[] tiff, bool isLE, int ifd, ushort tag)
     {
@@ -136,6 +238,33 @@ public static class DngRawReader
         return new uint[] { bytes[0], bytes[1], bytes[2], bytes[3] };
     }
 
+    // --- Output formatters ---------------------------------------------------
+
+    // LinearRaw photometric: the samples are already interleaved R, G, B per
+    // pixel. Just normalise by black/white level and pack to Rgba64.
+    static void UnpackLinearRaw(ushort[] samples, UInt64[] rgb, int W, int H, int spp, uint[] black, uint white)
+    {
+        double blackR = black.Length > 0 ? black[0] : 0;
+        double blackG = black.Length > 1 ? black[1] : blackR;
+        double blackB = black.Length > 2 ? black[2] : blackR;
+        double scale = 65535.0 / Math.Max(1.0, white - blackR);
+
+        Parallel.For(0, H, y =>
+        {
+            for (int x = 0; x < W; x++)
+            {
+                int i = (y * W + x) * spp;
+                ushort r = Quantize(samples[i], blackR, scale);
+                ushort g = spp > 1 ? Quantize(samples[i + 1], blackG, scale) : r;
+                ushort b = spp > 2 ? Quantize(samples[i + 2], blackB, scale) : r;
+                rgb[y * W + x] = r | ((UInt64)g << 16) | ((UInt64)b << 32) | ((UInt64)65535 << 48);
+            }
+        });
+    }
+
+    static ushort Quantize(ushort raw, double black, double scale) =>
+        (ushort)Math.Clamp(Math.Round((raw - black) * scale), 0, 65535);
+
     // Bilinear demosaic. The output RGB pixel at (x,y) is reconstructed by:
     //   - keeping the value of the channel actually sampled at (x,y)
     //   - averaging horizontally/vertically the neighbors for the channel that
@@ -143,14 +272,12 @@ public static class DngRawReader
     //   - averaging diagonally for the channel sampled at neither.
     static void BilinearDemosaic(ushort[] raw, UInt64[] rgb, int W, int H, uint[] cfa, uint[] black, uint white)
     {
-        // Per-position black levels. Indexed by (y%2)*2 + (x%2).
         double[] blackByPos = new double[4];
         for (int i = 0; i < 4; i++)
             blackByPos[i] = black.Length == 4 ? black[i] : (black.Length > 0 ? black[0] : 0);
         double whiteMinusBlack = Math.Max(1.0, white - blackByPos[0]);
         double scale = 65535.0 / whiteMinusBlack;
 
-        // Returns the 0..65535 linear value at (sx, sy), clamping to image bounds.
         double Sample(int sx, int sy)
         {
             sx = Math.Clamp(sx, 0, W - 1);

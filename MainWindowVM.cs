@@ -25,6 +25,8 @@ public partial class MainWindowVM : ObservableObject
     bool _encodeGamma, _decodeGamma;
     [ObservableProperty]
     OpcodeId _selectedOpcodeId = OpcodeId.FixVignetteRadial;
+    [ObservableProperty]
+    System.Collections.Generic.List<DngMetadata.Entry> _metadata = new();
     public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
     readonly string SAMPLES_DIR = Path.Combine(AppContext.BaseDirectory, "Samples");
     // Re-entrancy guard: rapid edits (ex. dragging a slider) coalesce into a
@@ -90,6 +92,7 @@ public partial class MainWindowVM : ObservableObject
             }
             ImgSrc = img;
             ImgDst = ImgSrc.Clone();
+            Metadata = ReadFileMetadata(filename);
             SetWindowTitle(filename);
         }
         catch (Exception ex)
@@ -97,6 +100,14 @@ public partial class MainWindowVM : ObservableObject
             MessageBox.Show($"Unable to open image:\n{filename}\n\n{ex.Message}", "Open Image",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+    static System.Collections.Generic.List<DngMetadata.Entry> ReadFileMetadata(string filename)
+    {
+        var ext = Path.GetExtension(filename).ToLowerInvariant();
+        if (ext != ".tiff" && ext != ".tif" && ext != ".dng")
+            return new System.Collections.Generic.List<DngMetadata.Entry>();
+        try { return DngMetadata.Read(File.ReadAllBytes(filename)); }
+        catch { return new System.Collections.Generic.List<DngMetadata.Entry>(); }
     }
     [RelayCommand]
     void SaveImage()

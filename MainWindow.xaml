@@ -27,22 +27,35 @@
             <RowDefinition Height="5"/>
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
-        <DataGrid Grid.Column="2" ItemsSource="{Binding SelectedOpcode.Parameters}" AutoGenerateColumns="False" 
-                  CanUserAddRows="False" CanUserDeleteRows="False">
-            <DataGrid.Columns>
-                <DataGridTextColumn IsReadOnly="True" Header="Parameter" Binding="{Binding Description}" />
-                <DataGridTextColumn Header="Value" Binding="{Binding Value, StringFormat=F4}" />
-                <DataGridTemplateColumn Header="Value (Slider)" Width="*">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Slider Value="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                    Minimum="-10" Maximum="10" SmallChange="0.01" LargeChange="0.1" 
-                                    TickFrequency="0.01" IsSnapToTickEnabled="True"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+        <TabControl Grid.Column="2">
+            <TabItem Header="Parameters">
+                <DataGrid ItemsSource="{Binding SelectedOpcode.Parameters}" AutoGenerateColumns="False"
+                          CanUserAddRows="False" CanUserDeleteRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn IsReadOnly="True" Header="Parameter" Binding="{Binding Description}" />
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value, StringFormat=F4}" />
+                        <DataGridTemplateColumn Header="Value (Slider)" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Slider Value="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Minimum="-10" Maximum="10" SmallChange="0.01" LargeChange="0.1"
+                                            TickFrequency="0.01" IsSnapToTickEnabled="True"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Metadata">
+                <DataGrid ItemsSource="{Binding Metadata}" AutoGenerateColumns="False"
+                          CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Tag" Binding="{Binding Name}" />
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>

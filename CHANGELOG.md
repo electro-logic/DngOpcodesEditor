@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Lossless JPEG (SOF3) decoder so DNGs with Compression = 7 — the format most cameras emit — open directly. All seven predictors, byte-stuffing and Huffman tables are handled.
+- Tiled raw DNG layout support (TileOffsets / TileByteCounts / TileWidth / TileLength), with arbitrary tile sizes including partial edge tiles.
+- LinearRaw DNG support (photometric 34892, three interleaved RGB samples per pixel — no demosaic step).
+- Metadata viewer panel in the WPF window showing the common EXIF / DNG tags of the open file (Make, Model, ISO, exposure, colour matrices, calibration illuminants, etc.). Lives in a new tab next to the parameter grid.
+- `TiffFile.FormatEntryValue` public helper that formats any TIFF entry as a human-readable string, including RATIONAL and FLOAT / DOUBLE arrays.
+- `DngMetadata.Read` helper that walks IFD0, SubIFDs and the EXIF SubIFD, returning a friendly Name / Value list with light per-tag prettification (compression code → name, calibration illuminant → name, units appended to focal length / exposure / aperture).
+- Tests: new LJPEG decoder tests (all-zero differences, mixed-difference Huffman roundtrip), tiled-uncompressed DNG, compressed (LJPEG-tile) DNG end-to-end, LinearRaw DNG, metadata reader.
+
+### Changed
+
+- `DngRawReader` refactored into layered sample-loader / sample-decoder / output-formatter stages so each file layout (strip / tile) and compression (uncompressed / LJPEG) can be combined freely.
+- Documentation: README updated to reflect the broader DNG coverage; FAQ no longer warns about compressed DNGs.
+
 ## [0.7.0] - 2026-05-20
 
 ### Added

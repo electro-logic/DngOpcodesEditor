@@ -13,7 +13,8 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 - **Live preview** of the opcode chain with multi-threaded pixel processing that runs off the UI thread.
 - **Full coverage** of OpcodeList1, OpcodeList2 and OpcodeList3 — each opcode remembers the list it belongs to and is written back to the matching tag.
 - **No external dependencies** — a built-in TIFF/DNG IFD parser replaces the previous ExifTool requirement.
-- **Direct DNG open** for uncompressed CFA DNGs via a built-in bilinear demosaic (no `dcraw_emu` step needed).
+- **Direct DNG open** for CFA DNGs (Bayer pattern), including Lossless JPEG compressed and tiled layouts, with a built-in bilinear demosaic. LinearRaw DNGs (already demosaiced) are also supported.
+- **Metadata panel** showing the common EXIF / DNG tags of the loaded image (Make, Model, ISO, exposure, DNG-specific colour-calibration tags, etc.).
 - **Drag-and-drop** any combination of `.tiff`, `.dng` and `.bin` files onto the window.
 - **Per-opcode enable / disable**, gamma encode/decode toggles, and an "Add Opcode" picker.
 - **Decoupled Core library** — the WPF window is a thin shell on top of a platform-agnostic core.
@@ -68,9 +69,9 @@ dotnet test
 
 ### Can I open a DNG image directly?
 
-Yes for **uncompressed strip-based DNGs** — the editor includes a built-in CFA reader with bilinear demosaic, so dropping a DNG opens it as the reference image.
+Yes. The editor includes a built-in CFA reader with bilinear demosaic that handles uncompressed, Lossless JPEG (the most common compression) and tiled DNGs, as well as LinearRaw (already-demosaiced) DNGs.
 
-Compressed DNGs (most modern files use Lossless JPEG) are not yet supported; develop those into a linear TIFF first with LibRaw's `dcraw_emu`:
+If you ever hit a compression the reader does not handle, fall back to LibRaw's `dcraw_emu` to develop the file first:
 
 ```
 dcraw_emu.exe -T -4 -o 0 input.DNG

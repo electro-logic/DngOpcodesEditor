@@ -255,6 +255,79 @@ public static class TiffFile
         return result;
     }
 
+    // Formats the value of an IFD entry into a human-readable string.
+    // Handles ASCII strings, integer arrays, rationals and floats — enough to
+    // surface common EXIF / DNG tags in the metadata viewer.
+    public static string FormatEntryValue(byte[] tiff, bool isLE, int entryOffset)
+    {
+        ushort type = ReadUInt16(tiff, entryOffset + 2, isLE);
+        uint count = ReadUInt32(tiff, entryOffset + 4, isLE);
+        int elementSize = TypeSize(type);
+        int totalBytes = (int)count * elementSize;
+        int dataOffset = totalBytes <= 4 ? entryOffset + 8 : (int)ReadUInt32(tiff, entryOffset + 8, isLE);
+
+        if (type == 2) // ASCII (null-terminated)
+        {
+            int end = Math.Min((int)count, tiff.Length - dataOffset);
+            int nul = Array.IndexOf(tiff, (byte)0, dataOffset, end);
+            int len = nul >= 0 ? nul - dataOffset : end;
+            return System.Text.Encoding.ASCII.GetString(tiff, dataOffset, len).Trim();
+        }
+        if (type == 7) // UNDEFINED — show as space-separated bytes
+        {
+            var bytes = new string[count];
+            for (int i = 0; i < count; i++) bytes[i] = tiff[dataOffset + i].ToString();
+            return count > 16
+                ? string.Join(" ", bytes, 0, 16) + $" ... ({count} bytes)"
+                : string.Join(" ", bytes);
+        }
+        if (type == 5 || type == 10) // RATIONAL / SRATIONAL
+        {
+            var parts = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                uint num = ReadUInt32(tiff, dataOffset + i * 8, isLE);
+                uint den = ReadUInt32(tiff, dataOffset + i * 8 + 4, isLE);
+                if (type == 10)
+                    parts[i] = den != 0 ? ((double)(int)num / (int)den).ToString("G6") : "0";
+                else
+                    parts[i] = den != 0 ? ((double)num / den).ToString("G6") : "0";
+            }
+            return string.Join(", ", parts);
+        }
+        if (type == 11 || type == 12) // FLOAT / DOUBLE
+        {
+            var parts = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                if (type == 11)
+                {
+                    float f = isLE
+                        ? System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(tiff.AsSpan(dataOffset + i * 4))
+                        : System.Buffers.Binary.BinaryPrimitives.ReadSingleBigEndian(tiff.AsSpan(dataOffset + i * 4));
+                    parts[i] = f.ToString("G6");
+                }
+                else
+                {
+                    double d = isLE
+                        ? System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(tiff.AsSpan(dataOffset + i * 8))
+                        : System.Buffers.Binary.BinaryPrimitives.ReadDoubleBigEndian(tiff.AsSpan(dataOffset + i * 8));
+                    parts[i] = d.ToString("G6");
+                }
+            }
+            return string.Join(", ", parts);
+        }
+        // Default: integer types — read via the existing helper.
+        var values = ReadEntryAsUInt32Array(tiff, isLE, entryOffset);
+        if (values.Length > 16)
+        {
+            var head = new string[16];
+            for (int i = 0; i < 16; i++) head[i] = values[i].ToString();
+            return string.Join(", ", head) + $" ... ({values.Length} values)";
+        }
+        return string.Join(", ", values);
+    }
+
     static void WriteValueField(byte[] data, int offset, byte[] payload, bool inline, uint payloadOffset, bool isLE)
     {
         if (inline)
