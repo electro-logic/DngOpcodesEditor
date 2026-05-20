@@ -32,6 +32,78 @@ public class DngMetadataTests
         Assert.Empty(entries);
     }
 
+    [Fact]
+    public void PrefersRawSubIfdForImageShapeTags()
+    {
+        // Build a TIFF that mimics the FiveK DNGs: IFD0 is a tiny RGB thumbnail,
+        // a SubIFD holds the actual CFA raw image. Camera tags belong to IFD0;
+        // image-shape tags must come from the raw SubIFD.
+        var tiff = BuildTiffWithRawSubIfd();
+
+        var entries = DngMetadata.Read(tiff);
+        var byName = new Dictionary<string, string>();
+        foreach (var e in entries) byName[e.Name] = e.Value;
+
+        Assert.Equal("ACME", byName["Make"]);
+        Assert.Equal("Camera X", byName["Model"]);
+        // Raw image is 1000x2000, thumbnail in IFD0 is 10x20 — must report raw.
+        Assert.Equal("1000", byName["Image Width"]);
+        Assert.Equal("2000", byName["Image Length"]);
+        Assert.Equal("Lossless JPEG", byName["Compression"]);
+        Assert.Equal("CFA", byName["Photometric Interpretation"]);
+    }
+
+    static byte[] BuildTiffWithRawSubIfd()
+    {
+        const int IFD0_OFFSET = 8;
+        const int IFD0_ENTRIES = 7;
+        int ifd0Size = 2 + 12 * IFD0_ENTRIES + 4;
+        int subIfdOffset = IFD0_OFFSET + ifd0Size;
+        const int SUBIFD_ENTRIES = 4;
+        int subIfdSize = 2 + 12 * SUBIFD_ENTRIES + 4;
+        int makeOffset = subIfdOffset + subIfdSize;
+        const string make = "ACME\0";
+        const string model = "Camera X\0";
+        int modelOffset = makeOffset + make.Length;
+        int totalSize = modelOffset + model.Length;
+
+        var data = new byte[totalSize];
+        data[0] = (byte)'I'; data[1] = (byte)'I';
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(2), 42);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), IFD0_OFFSET);
+
+        // IFD0: thumbnail-style entries plus a SubIFDs pointer.
+        var ifd0 = new[]
+        {
+            MakeEntry(256, 3, 1, 10),                                       // ImageWidth (thumbnail)
+            MakeEntry(257, 3, 1, 20),                                       // ImageLength (thumbnail)
+            MakeEntry(259, 3, 1, 1),                                        // Compression = uncompressed
+            MakeEntry(262, 3, 1, 2),                                        // Photometric = RGB
+            MakeAsciiEntry(271, make.Length, makeOffset),                   // Make
+            MakeAsciiEntry(272, model.Length, modelOffset),                 // Model
+            MakeEntry(330, 4, 1, (uint)subIfdOffset),                       // SubIFDs
+        };
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(IFD0_OFFSET), (ushort)ifd0.Length);
+        for (int i = 0; i < ifd0.Length; i++)
+            Buffer.BlockCopy(ifd0[i], 0, data, IFD0_OFFSET + 2 + 12 * i, 12);
+
+        // SubIFD: the actual raw image.
+        var sub = new[]
+        {
+            MakeEntry(256, 3, 1, 1000),                                     // raw ImageWidth
+            MakeEntry(257, 3, 1, 2000),                                     // raw ImageLength
+            MakeEntry(259, 3, 1, 7),                                        // Compression = Lossless JPEG
+            MakeEntry(262, 3, 1, 32803),                                    // Photometric = CFA
+        };
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(subIfdOffset), (ushort)sub.Length);
+        for (int i = 0; i < sub.Length; i++)
+            Buffer.BlockCopy(sub[i], 0, data, subIfdOffset + 2 + 12 * i, 12);
+
+        for (int i = 0; i < make.Length; i++) data[makeOffset + i] = (byte)make[i];
+        for (int i = 0; i < model.Length; i++) data[modelOffset + i] = (byte)model[i];
+        return data;
+    }
+
     // Tiny TIFF with a handful of tags spanning ASCII, SHORT and LONG types so
     // FormatEntryValue and DecorateValue both get exercised.
     static byte[] BuildTiffWithMetadata()

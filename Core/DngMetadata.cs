@@ -1,15 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace DngOpcodesEditor;
 
 // Extracts a friendly Name/Value list of the most useful TIFF/EXIF/DNG tags
 // from a DNG (or TIFF) file. Used by the metadata viewer panel.
 //
-// Tags are picked up from IFD0, every SubIFD, and the ExifIFD (linked from
-// IFD0 via tag 34665). The first occurrence of each known tag wins, which is
-// what you want when both IFD0 and the raw SubIFD declare the same tag.
+// Per-tag IFD preference:
+//   - Image-shape tags (Image Width/Length, BitsPerSample, Compression,
+//     PhotometricInterpretation, CFAPattern, BlackLevel, WhiteLevel) prefer
+//     the raw image SubIFD (photometric 32803 / 34892) when one exists,
+//     because IFD0 in a DNG usually holds a small embedded thumbnail and
+//     reporting its shape would be misleading.
+//   - Everything else (Make / Model / EXIF / DNG colour-calibration tags)
+//     prefers IFD0 + its EXIF sub-IFD, falling back to other IFDs.
 public static class DngMetadata
 {
     public class Entry
@@ -51,6 +55,12 @@ public static class DngMetadata
         (50779, "Calibration Illuminant 2"),
     };
 
+    // Tags whose value belongs to the raw image, not the thumbnail.
+    static readonly HashSet<ushort> _rawPreferredTags = new()
+    {
+        256, 257, 258, 259, 262, 33422, 50714, 50717,
+    };
+
     public static List<Entry> Read(byte[] tiff)
     {
         var result = new List<Entry>();
@@ -58,18 +68,40 @@ public static class DngMetadata
         {
             var (isLE, firstIfd) = TiffFile.ReadHeader(tiff);
 
-            // IFDs to scan: IFD chain + SubIFDs, plus the EXIF sub-IFD if linked.
-            var ifds = new List<uint>(TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd));
+            // All IFDs reachable from the file (IFD chain + SubIFDs).
+            var allIfds = new List<uint>(TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd));
+
+            // The raw image IFD = the first IFD whose photometric interpretation
+            // is CFA (32803) or LinearRaw (34892).
+            uint? rawIfd = null;
+            foreach (var ifd in allIfds)
+            {
+                int photoEntry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, 262);
+                if (photoEntry < 0) continue;
+                var photo = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, photoEntry);
+                if (photo.Length > 0 && (photo[0] == 32803 || photo[0] == 34892))
+                {
+                    rawIfd = ifd;
+                    break;
+                }
+            }
+
+            // The EXIF SubIFD is linked from IFD0 via tag 34665.
+            uint? exifIfd = null;
             int exifLink = TiffFile.FindEntryPublic(tiff, isLE, (int)firstIfd, 34665);
             if (exifLink >= 0)
             {
                 var v = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, exifLink);
-                if (v.Length > 0) ifds.Add(v[0]);
+                if (v.Length > 0) exifIfd = v[0];
             }
+
+            var rawFirst = BuildSearchOrder(rawIfd, firstIfd, exifIfd, allIfds, preferRaw: true);
+            var ifd0First = BuildSearchOrder(rawIfd, firstIfd, exifIfd, allIfds, preferRaw: false);
 
             foreach (var (tag, name) in _knownTags)
             {
-                foreach (var ifd in ifds)
+                var order = _rawPreferredTags.Contains(tag) ? rawFirst : ifd0First;
+                foreach (var ifd in order)
                 {
                     int entry = TiffFile.FindEntryPublic(tiff, isLE, (int)ifd, tag);
                     if (entry < 0) continue;
@@ -86,6 +118,30 @@ public static class DngMetadata
         return result;
     }
 
+    static List<uint> BuildSearchOrder(uint? rawIfd, uint firstIfd, uint? exifIfd, List<uint> allIfds, bool preferRaw)
+    {
+        var order = new List<uint>();
+        var seen = new HashSet<uint>();
+        void Add(uint ifd)
+        {
+            if (seen.Add(ifd)) order.Add(ifd);
+        }
+        if (preferRaw)
+        {
+            if (rawIfd.HasValue) Add(rawIfd.Value);
+            Add(firstIfd);
+        }
+        else
+        {
+            Add(firstIfd);
+            if (exifIfd.HasValue) Add(exifIfd.Value);
+        }
+        foreach (var ifd in allIfds) Add(ifd);
+        if (exifIfd.HasValue) Add(exifIfd.Value);
+        if (rawIfd.HasValue) Add(rawIfd.Value);
+        return order;
+    }
+
     // Light per-tag prettification: translate well-known numeric codes to
     // readable names, append units to scalars.
     static string DecorateValue(ushort tag, string raw)
@@ -95,8 +151,9 @@ public static class DngMetadata
             259 => raw switch        // Compression
             {
                 "1" => "Uncompressed",
+                "5" => "LZW",
                 "7" => "Lossless JPEG",
-                "8" => "Adobe Deflate",
+                "8" or "32946" => "Adobe Deflate",
                 _ => raw
             },
             262 => raw switch        // PhotometricInterpretation

@@ -7,6 +7,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- `DngMetadata` now prefers the raw image SubIFD for shape-of-image tags (`Image Width`, `Image Length`, `Bits Per Sample`, `Compression`, `Photometric Interpretation`, `CFA Pattern`, `Black Level`, `White Level`) instead of reporting the small thumbnail in IFD0. Camera tags (`Make`, `Model`, EXIF) still come from IFD0 / the EXIF SubIFD as before. Verified against the MIT-Adobe FiveK DNGs.
+
 ### Added
 
 - TIFF LZW decoder (`Core/LzwDecoder.cs`, compression 5). Implements the TIFF "early code-width bump" semantics and the LZW special-case for `k == nextCode`.
