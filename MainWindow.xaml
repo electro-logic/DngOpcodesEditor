@@ -81,23 +81,44 @@
                     </GridView>
                 </ListView.View>
             </ListView>
-            <StackPanel Grid.Column="2">
-                <StackPanel.Resources>
+            <!--
+                Right-side action column laid out as a 2-column grid so the
+                button stack is roughly half as tall as a plain vertical list.
+                Pairing: import-on-left / export-on-right — reading across each
+                row tells you what file format is being moved.
+            -->
+            <Grid Grid.Column="2">
+                <Grid.Resources>
                     <Style TargetType="Button">
                         <Setter Property="Margin" Value="0,0,0,10" />
                         <Setter Property="Padding" Value="5" />
                     </Style>
-                </StackPanel.Resources>
-                <Button Content="Open DNG (image + opcodes)" Command="{Binding OpenDngWithOpcodesCommand}" FontWeight="Bold" />
-                <Button Content="Import from DNG" Command="{Binding ImportDngCommand}" />
-                <Button Content="Import from Binary" Command="{Binding ImportBinCommand}" />
-                <Button Content="Export to DNG" Command="{Binding ExportDngCommand}" />
-                <Button Content="Export to Binary" Command="{Binding ExportBinCommand}" />
-                <Button Content="Delete Opcode" Command="{Binding DeleteOpcodeCommand}" />
-                <Button Content="Clear" Command="{Binding ClearCommand}" />
-                <ComboBox Margin="0,0,0,10" ItemsSource="{Binding OpcodeIds}" SelectedItem="{Binding SelectedOpcodeId}" />
-                <Button Content="Add Opcode" Command="{Binding AddSelectedOpcodeCommand}" />
-            </StackPanel>
+                </Grid.Resources>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Button Grid.Row="0" Grid.ColumnSpan="3" Content="Open DNG (image + opcodes)"
+                        Command="{Binding OpenDngWithOpcodesCommand}" FontWeight="Bold" />
+                <Button Grid.Row="1" Grid.Column="0" Content="Import from DNG"    Command="{Binding ImportDngCommand}" />
+                <Button Grid.Row="1" Grid.Column="2" Content="Export to DNG"      Command="{Binding ExportDngCommand}" />
+                <Button Grid.Row="2" Grid.Column="0" Content="Import from Binary" Command="{Binding ImportBinCommand}" />
+                <Button Grid.Row="2" Grid.Column="2" Content="Export to Binary"   Command="{Binding ExportBinCommand}" />
+                <Button Grid.Row="3" Grid.Column="0" Content="Delete Opcode"      Command="{Binding DeleteOpcodeCommand}" />
+                <Button Grid.Row="3" Grid.Column="2" Content="Clear"              Command="{Binding ClearCommand}" />
+                <ComboBox Grid.Row="4" Grid.Column="0" Margin="0,0,0,10"
+                          ItemsSource="{Binding OpcodeIds}" SelectedItem="{Binding SelectedOpcodeId}" />
+                <Button Grid.Row="4" Grid.Column="2" Content="Add Opcode"
+                        Command="{Binding AddSelectedOpcodeCommand}" />
+            </Grid>
         </Grid>
         <Image x:Name="imageSrc" Grid.Row="2" Source="{Binding ImgSrc.Bmp}" />
         <Button Content="Open Reference Image" Grid.Row="8" Command="{Binding OpenImageCommand}" />
@@ -107,12 +128,12 @@
         <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="6" HorizontalAlignment="Center" d:Text="Info" />
         <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="6" HorizontalAlignment="Right" d:Text="Position" />
 
-        <StackPanel Grid.Row="4" Orientation="Horizontal">
+        <StackPanel Grid.Row="4" Grid.ColumnSpan="3" Orientation="Horizontal">
             <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input (sRGB)"
                       ToolTip="Decode gamma-encoded inputs (typically 8-bit TIFF / PNG) with the sRGB EOTF before applying opcodes." />
             <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output (sRGB)" Margin="5,0,0,0"
                       ToolTip="Encode the preview with the sRGB OETF so it displays correctly on a standard sRGB monitor." />
-            <CheckBox IsChecked="{Binding ApplyColorTransform,Mode=TwoWay}" Content="Apply DNG Color Transform" Margin="20,0,0,0"
+            <CheckBox IsChecked="{Binding ApplyColorTransform,Mode=TwoWay}" Content="DNG Color Transform" Margin="20,0,0,0"
                       ToolTip="White balance + ColorMatrix from the DNG (AsShotNeutral and ColorMatrix2)" />
             <CheckBox IsChecked="{Binding ProcessAtFullResolution,Mode=TwoWay}" Content="Process at full resolution" Margin="20,0,0,0"
                       ToolTip="By default the preview is downsampled to FHD (1920x1080) for responsiveness on large DNGs" />
