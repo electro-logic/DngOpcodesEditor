@@ -7,6 +7,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- **One file per opcode under `Core/Opcodes/`.** `OpcodesImplementation` is now a `partial` class split across 14 files: the central `OpcodesImplementation.cs` keeps the `Apply` dispatcher, the gamma / sRGB helpers, and the shared private helpers (`ApplyArea`, `SampleBicubicChannel`, `CubicWeight`, `NeighborAverage`, `FixPixel`); each of the 13 supported opcodes lives in its own file alongside a doc-comment block that explains the DNG-spec meaning, the parameters, the typical OpcodeList placement, and any approximation notes. No behaviour change — 62 tests still pass.
+
 ### Added
 
 - **`ProfileHueSatMap` (DNG tags 50937 / 50938 / 50939) now drives per-hue saturation and value tweaks.** Read on file load and applied between the colour matrix and the tone curve, per the DNG spec ordering. Trilinear interpolation in HSV with hue wrap-around. Closes the saturation gap visible against Windows Photos on DJI Phantom 4 / Mavic 3 Pro DNGs, especially in the high-V high-S cells the manufacturer targets (skies, vivid colours). Uses `HueSatMap2` (D65) by default — HueSatMap1 + illuminant-interpolated blending remain future work (`docs/opcode-support.md`).
