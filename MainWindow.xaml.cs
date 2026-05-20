@@ -78,7 +78,7 @@ namespace DngOpcodesEditor
         // opcodes.
         void AddDemoOpcodes()
         {
-            var vignette = new OpcodeFixVignetteRadial { k0 = 1.0, cx = 0.5, cy = 0.5 };
+            var vignette = new OpcodeFixVignetteRadial { k0 = -0.5, k1 = -1.0, cx = 0.5, cy = 0.5 };
             vignette.header.id = OpcodeId.FixVignetteRadial;
             // List 3 (not 2): list-2 opcodes are skipped by the preview
             // pipeline because they're meant for pre-demosaic CFA data.
