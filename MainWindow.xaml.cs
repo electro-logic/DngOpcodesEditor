@@ -21,19 +21,18 @@ namespace DngOpcodesEditor
         }
 
         // 640x480 graph-paper grid styled after the original bundled
-        // grid.tiff: 10x10 cells of 64x48 px, light-grey background, medium-
-        // grey 2-px gridlines on every cell boundary, and a 4-px dark-grey
-        // frame around the perimeter. Greys lifted from the original
-        // checkerboard sample (BG=220, LINE=114, BORDER=40 in 8-bit space,
-        // expanded to 16-bit by replicating the byte into both halves).
+        // grid.tiff: 10x10 cells of 64x48 px, mid-grey background, white
+        // 4-px gridlines on every cell boundary, and a 20-px dark-grey
+        // frame around the perimeter. 16-bit values are 8-bit greys
+        // expanded by replicating the byte into both halves of the ushort.
         static PixelBuffer BuildReferenceGrid(int width, int height)
         {
             const int cellW       = 64;
             const int cellH       = 48;
-            const int lineThick   = 2;
-            const int borderThick = 4;
-            const ushort BG     = (220 << 8) | 220;
-            const ushort LINE   = (114 << 8) | 114;
+            const int lineThick   = 4;
+            const int borderThick = 20;
+            const ushort BG     = (114 << 8) | 114;
+            const ushort LINE   = (255 << 8) | 255;
             const ushort BORDER = (40  << 8) |  40;
 
             var pixels = new ulong[width * height];
