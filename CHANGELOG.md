@@ -7,6 +7,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-05-20
+
 ### Fixed
 
 - **Three quantisation points across the pipeline were truncating instead of rounding** — small per-pixel errors that accumulated into visible banding when many stages run in sequence. Identified during a precision audit:
