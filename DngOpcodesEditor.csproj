@@ -8,8 +8,8 @@
 	<AssemblyVersion>0.6.0.0</AssemblyVersion>
 	<FileVersion></FileVersion>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-	<!-- The Core, Tests and Avalonia projects live in subfolders; keep their files out of this build. -->
-	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**;Core\**;Avalonia\**</DefaultItemExcludes>
+	<!-- The Core and Tests projects live in subfolders; keep their files out of this build. -->
+	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**;Core\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

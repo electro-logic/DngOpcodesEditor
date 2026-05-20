@@ -8,14 +8,12 @@ Opcodes parameters can be freely changed to see the effect on the image in real-
 
 ## Projects
 
-The repo is organised as three projects sharing a common core:
+The repo is organised as a core library plus the WPF front-end:
 
 - **Core** (`Core/DngOpcodesEditor.Core.csproj`) — platform-agnostic library:
   opcode reader/writer, opcode preview implementations, a built-in TIFF/DNG
   IFD parser, and a bilinear DNG raw demosaicer.
-- **WPF** (`DngOpcodesEditor.csproj`) — original Windows front-end.
-- **Avalonia** (`Avalonia/DngOpcodesEditor.Avalonia.csproj`) — cross-platform
-  front-end (Windows, Linux, macOS).
+- **WPF** (`DngOpcodesEditor.csproj`) — Windows front-end.
 - **Tests** (`Tests/DngOpcodesEditor.Tests.csproj`) — xUnit reader/writer
   round-trip and TIFF/raw tests.
 
@@ -80,5 +78,4 @@ The "Encode Output Gamma" option should be always checked to properly display th
 
 **- Why I can't see the preview image I saved?**
 
-Ensure that your image viewer supports 16 bit TIFF files. The Avalonia front-end
-currently saves PNG only.
+Ensure that your image viewer supports 16 bit TIFF files.
