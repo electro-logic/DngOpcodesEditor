@@ -22,6 +22,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 
+- **All file dialogs now start in the dedicated DNG sample folder `D:\DngOpcodesEditor\Samples\dng`** (when present, with the previous repo `Samples/` and bin-output fallbacks behind it) and remember the most recently used folder for the next dialog. Applies to Open / Import / Save / Export commands alike.
+
+### Changed
+
 - Open dialogs now start in the **project's source `Samples/` folder** (resolved from the current working directory, then by walking up from the binary location until the `.csproj` is found). Previously they pointed at the bin output's linked copy, so newly-added test images required a rebuild to show up.
 
 ### Notes

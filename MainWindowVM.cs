@@ -34,16 +34,20 @@ public partial class MainWindowVM : ObservableObject
     [ObservableProperty]
     bool _processAtFullResolution;
     public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
-    // Open dialogs start here. Prefer the project's source Samples folder so
-    // freshly-added test images are discoverable without copying to the bin
-    // output; fall back to the bin's linked Samples copy for deployed builds.
-    readonly string SAMPLES_DIR = ResolveSamplesDir();
-    static string ResolveSamplesDir()
+    // File dialogs start here. After each successful Open / Save, the
+    // dialog's folder is remembered for the next dialog. Initial value:
+    // prefer the dedicated DNG sample folder, then the project's Samples,
+    // then the bin output's linked copy for deployed builds.
+    string _lastDialogDirectory = ResolveInitialDialogDirectory();
+    static string ResolveInitialDialogDirectory()
     {
-        // 1. Current working directory (set by `dotnet run` / Visual Studio to the project root).
+        // 1. The preferred DNG test corpus.
+        const string DngSamples = @"D:\DngOpcodesEditor\Samples\dng";
+        if (Directory.Exists(DngSamples)) return DngSamples;
+        // 2. Current working directory (set by `dotnet run` / Visual Studio to the project root).
         var cwd = Path.Combine(Environment.CurrentDirectory, "Samples");
         if (Directory.Exists(cwd)) return cwd;
-        // 2. Walk up from the binary location until we find the .csproj.
+        // 3. Walk up from the binary location until we find the .csproj.
         var dir = AppContext.BaseDirectory;
         for (int i = 0; i < 8 && !string.IsNullOrEmpty(dir); i++)
         {
@@ -51,8 +55,13 @@ public partial class MainWindowVM : ObservableObject
                 return Path.Combine(dir, "Samples");
             dir = Path.GetDirectoryName(dir);
         }
-        // 3. Last resort: the linked copy in the bin output.
+        // 4. Last resort: the linked copy in the bin output.
         return Path.Combine(AppContext.BaseDirectory, "Samples");
+    }
+    void RememberFolder(string filename)
+    {
+        var folder = Path.GetDirectoryName(filename);
+        if (!string.IsNullOrEmpty(folder)) _lastDialogDirectory = folder;
     }
     // Working previews are downsampled to at most this size unless
     // ProcessAtFullResolution is set, so editing 24 MP DNGs stays snappy.
@@ -94,9 +103,10 @@ public partial class MainWindowVM : ObservableObject
     [RelayCommand]
     void OpenImage()
     {
-        var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
+        var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*", InitialDirectory = _lastDialogDirectory };
         if (dialog.ShowDialog() == true)
         {
+            RememberFolder(dialog.FileName);
             OpenImage(dialog.FileName);
             _ = ApplyOpcodes();
         }
@@ -107,9 +117,10 @@ public partial class MainWindowVM : ObservableObject
     [RelayCommand]
     async Task OpenDngWithOpcodes()
     {
-        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
+        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*", InitialDirectory = _lastDialogDirectory };
         if (dialog.ShowDialog() != true)
             return;
+        RememberFolder(dialog.FileName);
         OpenDngWithOpcodes(dialog.FileName);
         await ApplyOpcodes();
     }
@@ -193,10 +204,12 @@ public partial class MainWindowVM : ObservableObject
         var dialog = new SaveFileDialog()
         {
             Filter = "Tiff image (*.tiff)|*.tiff",
-            FileName = "processed_" + DateTime.Now.ToString("HHmmss") + ".tiff"
+            FileName = "processed_" + DateTime.Now.ToString("HHmmss") + ".tiff",
+            InitialDirectory = _lastDialogDirectory
         };
         if (dialog.ShowDialog() == true)
         {
+            RememberFolder(dialog.FileName);
             try
             {
                 ImgDst.SaveImage(dialog.FileName);
@@ -247,9 +260,10 @@ public partial class MainWindowVM : ObservableObject
     [RelayCommand]
     async Task ImportDng()
     {
-        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
+        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*", InitialDirectory = _lastDialogDirectory };
         if (dialog.ShowDialog() == true)
         {
+            RememberFolder(dialog.FileName);
             ImportDng(dialog.FileName);
             await ApplyOpcodes();
         }
@@ -294,9 +308,10 @@ public partial class MainWindowVM : ObservableObject
     [RelayCommand]
     async Task ImportBin()
     {
-        var dialog = new OpenFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
+        var dialog = new OpenFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*", InitialDirectory = _lastDialogDirectory };
         if (dialog.ShowDialog() == true)
         {
+            RememberFolder(dialog.FileName);
             ImportBin(dialog.FileName);
             await ApplyOpcodes();
         }
@@ -320,9 +335,10 @@ public partial class MainWindowVM : ObservableObject
     [RelayCommand]
     void ExportBin()
     {
-        var dialog = new SaveFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*" };
+        var dialog = new SaveFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*", InitialDirectory = _lastDialogDirectory };
         if (dialog.ShowDialog() == true)
         {
+            RememberFolder(dialog.FileName);
             try
             {
                 File.WriteAllBytes(dialog.FileName, new OpcodesWriter().WriteOpcodeList(Opcodes));
@@ -343,10 +359,11 @@ public partial class MainWindowVM : ObservableObject
         var dialog = new SaveFileDialog()
         {
             Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*",
-            InitialDirectory = AppContext.BaseDirectory
+            InitialDirectory = _lastDialogDirectory
         };
         if (dialog.ShowDialog() != true)
             return;
+        RememberFolder(dialog.FileName);
         try
         {
             Mouse.OverrideCursor = Cursors.Wait;
