@@ -23,24 +23,30 @@ public static class DngRawReader
     public static PixelBuffer Read(byte[] tiff)
     {
         var (isLE, firstIfd) = TiffFile.ReadHeader(tiff);
+        // Walk every IFD once, picking the best image:
+        //   1st choice: CFA (32803) or LinearRaw (34892) — the actual raw image.
+        //   2nd choice: RGB (2) — useful for already-developed TIFFs and as a
+        //   fall-back when no raw IFD is present.
+        int? rgbFallback = null;
         foreach (var ifd in TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd))
         {
-            if (IsRawIfd(tiff, isLE, (int)ifd))
+            uint photometric = PhotometricOf(tiff, isLE, (int)ifd);
+            if (photometric == 32803 || photometric == 34892)
                 return ReadRawFromIfd(tiff, isLE, (int)ifd);
+            if (photometric == 2 && rgbFallback == null)
+                rgbFallback = (int)ifd;
         }
-        throw new InvalidDataException("No raw image IFD (PhotometricInterpretation = CFA or LinearRaw) found in the file.");
+        if (rgbFallback != null)
+            return ReadRawFromIfd(tiff, isLE, rgbFallback.Value);
+        throw new InvalidDataException("No CFA, LinearRaw or RGB image IFD found in the file.");
     }
 
-    static bool IsRawIfd(byte[] tiff, bool isLE, int ifd)
+    static uint PhotometricOf(byte[] tiff, bool isLE, int ifd)
     {
-        int photoEntry = TiffFile.FindEntryPublic(tiff, isLE, ifd, 262);
-        if (photoEntry < 0)
-            return false;
-        var photo = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, photoEntry);
-        if (photo.Length == 0)
-            return false;
-        // 32803 = CFA, 34892 = LinearRaw (already demosaiced).
-        return photo[0] == 32803 || photo[0] == 34892;
+        int entry = TiffFile.FindEntryPublic(tiff, isLE, ifd, 262);
+        if (entry < 0) return uint.MaxValue;
+        var v = TiffFile.ReadEntryAsUInt32Array(tiff, isLE, entry);
+        return v.Length > 0 ? v[0] : uint.MaxValue;
     }
 
     static PixelBuffer ReadRawFromIfd(byte[] tiff, bool isLE, int ifd)
@@ -50,8 +56,9 @@ public static class DngRawReader
         uint compression = OptionalTag(tiff, isLE, ifd, 259, 1);
         uint photometric = RequiredTag(tiff, isLE, ifd, 262);
         int bitsPerSample = (int)OptionalTag(tiff, isLE, ifd, 258, 16);
-        // CFA = one sample per pixel; LinearRaw defaults to three interleaved.
-        int samplesPerPixel = (int)OptionalTag(tiff, isLE, ifd, 277, photometric == 34892 ? 3u : 1u);
+        // CFA = one sample per pixel; LinearRaw and RGB default to three interleaved.
+        bool hasInterleavedRgb = photometric == 34892 || photometric == 2;
+        int samplesPerPixel = (int)OptionalTag(tiff, isLE, ifd, 277, hasInterleavedRgb ? 3u : 1u);
 
         SampleDecoder decoder = compression switch
         {
@@ -73,7 +80,7 @@ public static class DngRawReader
             var cfaPattern = ReadCfaPattern(tiff, isLE, ifd);
             BilinearDemosaic(samples, rgb, width, height, cfaPattern, blackLevels, whiteLevel);
         }
-        else // 34892 LinearRaw
+        else // 34892 LinearRaw or 2 RGB — both are interleaved R/G/B per pixel.
         {
             UnpackLinearRaw(samples, rgb, width, height, samplesPerPixel, blackLevels, whiteLevel);
         }
@@ -178,11 +185,12 @@ public static class DngRawReader
         }
         if (bitsPerSample == 8)
         {
+            // Keep the samples at their native precision so the downstream
+            // normalisation (using BlackLevel / WhiteLevel, which are in
+            // BitsPerSample units) produces correct results.
             var result = new ushort[byteCount];
             for (int i = 0; i < byteCount; i++)
-                // Left-shift to use the full 16-bit range so the rest of the
-                // pipeline can treat 8-bit and 16-bit data uniformly.
-                result[i] = (ushort)(file[offset + i] << 8);
+                result[i] = file[offset + i];
             return result;
         }
         throw new NotSupportedException($"Uncompressed BitsPerSample = {bitsPerSample} is not supported (8 or 16 only).");

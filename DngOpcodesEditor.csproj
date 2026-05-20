@@ -8,8 +8,8 @@
 	<AssemblyVersion>0.7.0.0</AssemblyVersion>
 	<FileVersion></FileVersion>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-	<!-- The Core and Tests projects live in subfolders; keep their files out of this build. -->
-	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**;Core\**</DefaultItemExcludes>
+	<!-- The Core, Tests and Cli projects live in subfolders; keep their files out of this build. -->
+	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**;Core\**;Cli\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

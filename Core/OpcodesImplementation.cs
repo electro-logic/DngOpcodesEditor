@@ -7,6 +7,39 @@ namespace DngOpcodesEditor;
 
 public static class OpcodesImplementation
 {
+    // Dispatches a single opcode to its preview implementation. Both the WPF
+    // view-model and the headless CLI go through here so the supported-opcodes
+    // set stays in one place.
+    public static void Apply(PixelBuffer img, Opcode opcode)
+    {
+        switch (opcode.header.id)
+        {
+            case OpcodeId.WarpRectilinear: WarpRectilinear(img, (OpcodeWarpRectilinear)opcode); break;
+            case OpcodeId.WarpFisheye: WarpFisheye(img, (OpcodeWarpFisheye)opcode); break;
+            case OpcodeId.FixVignetteRadial: FixVignetteRadial(img, (OpcodeFixVignetteRadial)opcode); break;
+            case OpcodeId.FixBadPixelsConstant: FixBadPixelsConstant(img, (OpcodeFixBadPixelsConstant)opcode); break;
+            case OpcodeId.FixBadPixelsList: FixBadPixelsList(img, (OpcodeFixBadPixelsList)opcode); break;
+            case OpcodeId.TrimBounds: TrimBounds(img, (OpcodeTrimBounds)opcode); break;
+            case OpcodeId.MapTable: MapTable(img, (OpcodeMapTable)opcode); break;
+            case OpcodeId.MapPolynomial: MapPolynomial(img, (OpcodeMapPolynomial)opcode); break;
+            case OpcodeId.GainMap: GainMap(img, (OpcodeGainMap)opcode); break;
+            case OpcodeId.DeltaPerRow: DeltaPerRow(img, (OpcodeDeltaPerRow)opcode); break;
+            case OpcodeId.DeltaPerColumn: DeltaPerColumn(img, (OpcodeDeltaPerColumn)opcode); break;
+            case OpcodeId.ScalePerRow: ScalePerRow(img, (OpcodeScalePerRow)opcode); break;
+            case OpcodeId.ScalePerColumn: ScalePerColumn(img, (OpcodeScalePerColumn)opcode); break;
+            default: Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped"); break;
+        }
+    }
+    // Raises every pixel value to the given exponent (in normalized [0,1] space).
+    // Used to switch between gamma-encoded and linear representations.
+    public static void ApplyGamma(PixelBuffer img, float exponent)
+    {
+        Parallel.For(0, img.Height, (y) =>
+        {
+            for (int x = 0; x < img.Width; x++)
+                img.ChangeRgb16Pixel(x, y, pixel => MathF.Pow(pixel / 65535.0f, exponent) * 65535.0f);
+        });
+    }
     // Multiplies a specified area and plane range of an image by a gain map
     public static void GainMap(PixelBuffer img, OpcodeGainMap p)
     {
@@ -133,6 +166,63 @@ public static class OpcodesImplementation
         });
         img.SetPixels(newImg);
         Debug.WriteLine($"\tWarpRectilinear executed in {sw.ElapsedMilliseconds}ms");
+    }
+    // Applies a fisheye warp. Per plane the radial polynomial operates on
+    // atan(r) instead of r, which is what makes the model fisheye-shaped:
+    //     newAngle  = kr0 + kr1*atan(r) + kr2*atan(r)^2 + kr3*atan(r)^3
+    //     newRadius = tan(newAngle)
+    // The destination pixel is sampled from the source at the warped radius
+    // along the same direction, using bicubic interpolation. With kr=[0,1,0,0]
+    // the warp is the identity.
+    public static void WarpFisheye(PixelBuffer img, OpcodeWarpFisheye p)
+    {
+        var sw = Stopwatch.StartNew();
+        int w = img.Width, h = img.Height;
+        double cx = p.cx * (w - 1);
+        double cy = p.cy * (h - 1);
+        double mx = Math.Max(Math.Abs(cx), Math.Abs(w - 1 - cx));
+        double my = Math.Max(Math.Abs(cy), Math.Abs(h - 1 - cy));
+        double m = Math.Sqrt(mx * mx + my * my);
+        int planes = (int)Math.Max(1, p.planes);
+        var newImg = new UInt64[w * h];
+        Parallel.For(0, h, (y) =>
+        {
+            Span<UInt16> outPx = stackalloc UInt16[3];
+            for (int x = 0; x < w; x++)
+            {
+                for (int channel = 0; channel < 3; channel++)
+                {
+                    int coeffPlane = planes == 1 ? 0 : Math.Min(channel, planes - 1);
+                    int b = coeffPlane * 4;
+                    double kr0 = p.coefficients[b + 0];
+                    double kr1 = p.coefficients[b + 1];
+                    double kr2 = p.coefficients[b + 2];
+                    double kr3 = p.coefficients[b + 3];
+                    double dx = (x - cx) / m;
+                    double dy = (y - cy) / m;
+                    double r = Math.Sqrt(dx * dx + dy * dy);
+                    double xSrc, ySrc;
+                    if (r < 1e-12)
+                    {
+                        xSrc = cx;
+                        ySrc = cy;
+                    }
+                    else
+                    {
+                        double t = Math.Atan(r);
+                        double newt = kr0 + kr1 * t + kr2 * t * t + kr3 * t * t * t;
+                        double newr = Math.Tan(newt);
+                        double ratio = newr / r;
+                        xSrc = cx + m * dx * ratio;
+                        ySrc = cy + m * dy * ratio;
+                    }
+                    outPx[channel] = SampleBicubicChannel(img, xSrc, ySrc, channel);
+                }
+                newImg[x + y * w] = outPx[0] | ((UInt64)outPx[1] << 16) | ((UInt64)outPx[2] << 32) | ((UInt64)65535 << 48);
+            }
+        });
+        img.SetPixels(newImg);
+        Debug.WriteLine($"\tWarpFisheye executed in {sw.ElapsedMilliseconds}ms");
     }
     // Applies a lookup table to a region and plane range of an image
     public static void MapTable(PixelBuffer img, OpcodeMapTable p)

@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Core\DngOpcodesEditor.Core.csproj" />
+    <ProjectReference Include="..\Cli\DngOpcodesEditor.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

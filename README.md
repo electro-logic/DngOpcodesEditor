@@ -18,13 +18,15 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 - **Drag-and-drop** any combination of `.tiff`, `.dng` and `.bin` files onto the window.
 - **Per-opcode enable / disable**, gamma encode/decode toggles, and an "Add Opcode" picker.
 - **Decoupled Core library** — the WPF window is a thin shell on top of a platform-agnostic core.
+- **Headless CLI** (`dng-opcodes`) for scripting opcode list / extract / inject / metadata / preview operations without the GUI.
 
 ## Supported opcodes
 
 | ID | Opcode                  | Read | Write | Preview |
 |----|-------------------------|:----:|:-----:|:-------:|
 | 1  | WarpRectilinear         |  ✓   |   ✓   |    ✓    |
-| 2  | WarpFisheye             |  ✓   |   ✓   |         |
+| 2  | WarpFisheye             |  ✓   |   ✓   |    ✓    |
+
 | 3  | FixVignetteRadial       |  ✓   |   ✓   |    ✓    |
 | 4  | FixBadPixelsConstant    |  ✓   |   ✓   |    ✓    |
 | 5  | FixBadPixelsList        |  ✓   |   ✓   |    ✓    |
@@ -37,7 +39,7 @@ Adjust any opcode parameter with a slider and watch the preview image update in 
 | 12 | ScalePerRow             |  ✓   |   ✓   |    ✓    |
 | 13 | ScalePerColumn          |  ✓   |   ✓   |    ✓    |
 
-`WarpRectilinear` supports multi-plane warps (chromatic-aberration correction) and bicubic resampling.
+`WarpRectilinear` and `WarpFisheye` both support multi-plane warps (chromatic-aberration correction) and bicubic resampling.
 
 `FixBadPixels*` and the region opcodes are designed for raw CFA data; on a demosaiced RGB preview they are approximated.
 
@@ -57,13 +59,40 @@ Run the test suite with:
 dotnet test
 ```
 
+### Headless CLI
+
+The `dng-opcodes` tool exposes the same opcode pipeline without a GUI. After
+building:
+
+```
+dotnet run --project Cli/DngOpcodesEditor.Cli.csproj -- <command> [args]
+```
+
+Available commands:
+
+| Command   | Arguments                                              | Purpose                                                          |
+|-----------|--------------------------------------------------------|------------------------------------------------------------------|
+| `list`    | `<dng>`                                                | List opcodes in each OpcodeList tag.                             |
+| `extract` | `<dng> <list:1\|2\|3> <output.bin>`                    | Save the OpcodeListN payload to a binary file.                   |
+| `inject`  | `<dng> <input.bin> <list:1\|2\|3>`                     | Replace OpcodeListN in the DNG (modifies the file in place).     |
+| `metadata`| `<file>`                                               | Print common EXIF / DNG tags.                                    |
+| `preview` | `<input.dng\|tiff> <list.bin> <output.tiff>`           | Apply an opcode list to an image and write a 16-bit RGB TIFF.    |
+|           | `[--decode-input-gamma]`                               | Apply a 2.2 gamma decode to the input first.                     |
+|           | `[--no-encode-gamma]`                                  | Skip the final 1/2.2 gamma encode (keep the TIFF linear).        |
+
+`list`, `extract`, `inject` and `metadata` work on any TIFF / DNG regardless of
+compression (they only touch IFD entries). `preview` currently only handles
+uncompressed and Lossless JPEG image data — LZW / Deflate decompression is on
+the roadmap.
+
 ## Project layout
 
 | Project                                 | Purpose                                                                                  |
 |-----------------------------------------|------------------------------------------------------------------------------------------|
-| `Core/DngOpcodesEditor.Core.csproj`     | Platform-agnostic library: opcode reader/writer, opcode preview implementations, TIFF/DNG IFD parser and bilinear DNG raw demosaicer. |
-| `DngOpcodesEditor.csproj`               | WPF (Windows) front-end. Thin layer on top of Core.                                      |
-| `Tests/DngOpcodesEditor.Tests.csproj`   | xUnit round-trip and TIFF/raw tests.                                                     |
+| `Core/DngOpcodesEditor.Core.csproj`     | Platform-agnostic library: opcode reader/writer, opcode preview implementations, TIFF/DNG IFD parser, Lossless JPEG decoder, bilinear DNG raw demosaicer, 16-bit RGB TIFF writer. |
+| `DngOpcodesEditor.csproj`               | WPF (Windows) GUI front-end.                                                              |
+| `Cli/DngOpcodesEditor.Cli.csproj`       | Headless `dng-opcodes` command-line tool.                                                 |
+| `Tests/DngOpcodesEditor.Tests.csproj`   | xUnit round-trip, decoder and CLI integration tests.                                      |
 
 ## FAQ
 

@@ -9,6 +9,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- `WarpFisheye` preview: per-plane 4-coefficient polynomial in `atan(r)` with bicubic backward sampling. The opcode is now fully read, written and previewed.
+- Headless `dng-opcodes` CLI (new `Cli/` project): `list`, `extract`, `inject`, `metadata` and `preview` commands. Works without the WPF GUI; useful for batch / scripted opcode editing.
+- `Core/TiffWriter.cs`: minimal 16-bit RGB TIFF encoder used by the CLI `preview` command (and a building block for any future "save as 16-bit TIFF" in the GUI).
+- `OpcodesImplementation.Apply` and `OpcodesImplementation.ApplyGamma` — shared dispatch helpers so the WPF VM and the CLI go through the same code path for every opcode.
+- `DngRawReader` also accepts plain RGB TIFFs (photometric 2), with a smarter best-IFD picker that prefers CFA/LinearRaw over RGB thumbnails when both are present.
+- CLI integration tests: end-to-end `preview` and `list` exercised by building inputs in-memory with `TiffWriter` / `TiffFile.WriteOpcodeList`.
 - Lossless JPEG (SOF3) decoder so DNGs with Compression = 7 — the format most cameras emit — open directly. All seven predictors, byte-stuffing and Huffman tables are handled.
 - Tiled raw DNG layout support (TileOffsets / TileByteCounts / TileWidth / TileLength), with arbitrary tile sizes including partial edge tiles.
 - LinearRaw DNG support (photometric 34892, three interleaved RGB samples per pixel — no demosaic step).

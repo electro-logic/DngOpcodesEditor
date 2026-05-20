@@ -313,61 +313,6 @@ public partial class MainWindowVM : ObservableObject
         await ApplyOpcodes();
     }
     Opcode[] ImportBin(byte[] binaryData) => new OpcodesReader().ReadOpcodeList(binaryData);
-    static void ApplyGamma(Image img, float exponent)
-    {
-        Parallel.For(0, img.Height, (y) =>
-        {
-            for (int x = 0; x < img.Width; x++)
-            {
-                img.ChangeRgb16Pixel(x, y, pixel => MathF.Pow(pixel / 65535.0f, exponent) * 65535.0f);
-            }
-        });
-    }
-    static void ApplyOpcode(Image img, Opcode opcode)
-    {
-        switch (opcode.header.id)
-        {
-            case OpcodeId.WarpRectilinear:
-                OpcodesImplementation.WarpRectilinear(img, (OpcodeWarpRectilinear)opcode);
-                break;
-            case OpcodeId.FixVignetteRadial:
-                OpcodesImplementation.FixVignetteRadial(img, (OpcodeFixVignetteRadial)opcode);
-                break;
-            case OpcodeId.FixBadPixelsConstant:
-                OpcodesImplementation.FixBadPixelsConstant(img, (OpcodeFixBadPixelsConstant)opcode);
-                break;
-            case OpcodeId.FixBadPixelsList:
-                OpcodesImplementation.FixBadPixelsList(img, (OpcodeFixBadPixelsList)opcode);
-                break;
-            case OpcodeId.TrimBounds:
-                OpcodesImplementation.TrimBounds(img, (OpcodeTrimBounds)opcode);
-                break;
-            case OpcodeId.MapTable:
-                OpcodesImplementation.MapTable(img, (OpcodeMapTable)opcode);
-                break;
-            case OpcodeId.MapPolynomial:
-                OpcodesImplementation.MapPolynomial(img, (OpcodeMapPolynomial)opcode);
-                break;
-            case OpcodeId.GainMap:
-                OpcodesImplementation.GainMap(img, (OpcodeGainMap)opcode);
-                break;
-            case OpcodeId.DeltaPerRow:
-                OpcodesImplementation.DeltaPerRow(img, (OpcodeDeltaPerRow)opcode);
-                break;
-            case OpcodeId.DeltaPerColumn:
-                OpcodesImplementation.DeltaPerColumn(img, (OpcodeDeltaPerColumn)opcode);
-                break;
-            case OpcodeId.ScalePerRow:
-                OpcodesImplementation.ScalePerRow(img, (OpcodeScalePerRow)opcode);
-                break;
-            case OpcodeId.ScalePerColumn:
-                OpcodesImplementation.ScalePerColumn(img, (OpcodeScalePerColumn)opcode);
-                break;
-            default:
-                Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped");
-                break;
-        }
-    }
     partial void OnDecodeGammaChanged(bool value) => _ = ApplyOpcodes();
     partial void OnEncodeGammaChanged(bool value) => _ = ApplyOpcodes();
     [RelayCommand]
@@ -401,11 +346,11 @@ public partial class MainWindowVM : ObservableObject
                     {
                         // Opcodes operate on linear values, before gamma encoding
                         if (decode)
-                            ApplyGamma(dst, 2.2f);
+                            OpcodesImplementation.ApplyGamma(dst, 2.2f);
                         foreach (var op in ops)
-                            ApplyOpcode(dst, op);
+                            OpcodesImplementation.Apply(dst, op);
                         if (encode)
-                            ApplyGamma(dst, 1.0f / 2.2f);
+                            OpcodesImplementation.ApplyGamma(dst, 1.0f / 2.2f);
                     }
                     catch (Exception ex)
                     {
