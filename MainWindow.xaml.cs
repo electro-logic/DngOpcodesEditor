@@ -15,22 +15,36 @@ namespace DngOpcodesEditor
             // file. Previously the constructor loaded `Samples\grid.tiff` and
             // two `.bin` payloads via *relative* paths, which only worked when
             // the process CWD happened to be the build-output directory.
-            ViewModel.LoadReferenceBuffer(BuildReferenceGrid(640, 480, 32), "Reference Grid");
+            ViewModel.LoadReferenceBuffer(BuildReferenceGrid(640, 480), "Reference Grid");
             AddDemoOpcodes();
             _ = ViewModel.ApplyOpcodes();
         }
 
-        // 640x480 white grid on black lines every `cellSize` pixels. Cheap to
-        // make and gives every opcode something visibly structured to act on.
-        static PixelBuffer BuildReferenceGrid(int width, int height, int cellSize)
+        // 640x480 graph-paper grid styled after the original bundled
+        // grid.tiff: 10x10 cells of 64x48 px, light-grey background, medium-
+        // grey 2-px gridlines on every cell boundary, and a 4-px dark-grey
+        // frame around the perimeter. Greys lifted from the original
+        // checkerboard sample (BG=220, LINE=114, BORDER=40 in 8-bit space,
+        // expanded to 16-bit by replicating the byte into both halves).
+        static PixelBuffer BuildReferenceGrid(int width, int height)
         {
+            const int cellW       = 64;
+            const int cellH       = 48;
+            const int lineThick   = 2;
+            const int borderThick = 4;
+            const ushort BG     = (220 << 8) | 220;
+            const ushort LINE   = (114 << 8) | 114;
+            const ushort BORDER = (40  << 8) |  40;
+
             var pixels = new ulong[width * height];
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
                 {
-                    bool onLine = x % cellSize == 0 || y % cellSize == 0;
-                    ushort v = onLine ? (ushort)0 : (ushort)65535;
+                    bool onBorder = x < borderThick || x >= width - borderThick
+                                 || y < borderThick || y >= height - borderThick;
+                    bool onLine   = x % cellW < lineThick || y % cellH < lineThick;
+                    ushort v = onBorder ? BORDER : onLine ? LINE : BG;
                     pixels[x + y * width] = v | ((ulong)v << 16) | ((ulong)v << 32) | (65535UL << 48);
                 }
             }
