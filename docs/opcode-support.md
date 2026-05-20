@@ -33,7 +33,7 @@ Each opcode lives in its own file under `Core/Opcodes/<Name>.cs` (parts of a sin
 
 ## What's in the `Samples/` folder
 
-The corpus is curated to **one DNG per `(camera model, opcode-list set)` combination** — duplicates from the original test sets live in `Samples/dng/extras/` and stay around in case a regression demands a wider sample (multiple frames from the same camera occasionally diverge in `FixBadPixelsList` content).
+The corpus is curated to **only DNGs that actually ship OpcodeList tags** — one per `(camera model, opcode-list set)` combination. DNGs without opcodes (the FiveK CFA training set, the iPhone LinearRaw sample, and duplicate frames from the same camera) live in `Samples/dng/extras/` and remain available when a regression demands a wider sample.
 
 ### Curated DNG samples
 
@@ -42,15 +42,8 @@ The corpus is curated to **one DNG per `(camera model, opcode-list set)` combina
 | `Samples/dng/20161129-DJI_0014.DNG` | DJI Phantom 4 (FC300C) | Uncompressed CFA, 4000×3000, 14-bit | OpcodeList1 — `FixBadPixelsList` |
 | `Samples/dng/DJI_20230424201430_0069_D.DNG` | DJI Mavic 3 Pro (Hasselblad L2D-20c) | Lossless JPEG CFA, 5280×3956, 14-bit | OpcodeList3 — `GainMap` + `WarpRectilinear` |
 | `Samples/dng/PXL_20211119_004121420.dng` | Google Pixel 6 | Lossless JPEG CFA | OpcodeList2 — 4× `GainMap` (per Bayer plane); OpcodeList3 — `WarpRectilinear` |
-| `Samples/dng/IMG_5210.DNG` | Apple iPhone 15 Pro Max | Lossless JPEG **LinearRaw** | none |
-| `Samples/dng/a0001-jmac_DSC1459.dng` | Nikon D70 | Lossless JPEG CFA | none (FiveK training DNG) |
-| `Samples/dng/a0003-NKIM_MG_8178.dng` | Canon EOS 40D | Lossless JPEG CFA | none |
-| `Samples/dng/a0009-kme_372.dng` | Fujifilm FinePix S2Pro | Lossless JPEG CFA | none |
-| `Samples/dng/a0025-kme_298.dng` | Kodak DCS460 | Lossless JPEG CFA | none |
-| `Samples/dng/a0074-WP_CRW_0343.dng` | Canon EOS 10D | Lossless JPEG CFA | none |
-| `Samples/dng/a5000-kme_0204.dng` | Sony DSLR-A900 | Lossless JPEG CFA | none |
 
-The Pixel 6 frame is the only sample in the set that carries an OpcodeList2 — and the 4× `GainMap` (one per Bayer plane) is a real-world workout for the GainMap implementation. The iPhone frame is the only **LinearRaw** sample (already demosaiced, photometric 34892).
+The Pixel 6 frame is the only sample in the set that carries an OpcodeList2 — and the 4× `GainMap` (one per Bayer plane) is a real-world workout for the CFA-stage GainMap implementation.
 
 ### Other sample files
 
@@ -61,9 +54,11 @@ The Pixel 6 frame is the only sample in the set that carries an OpcodeList2 — 
 | `Samples/GainMap.bin` | Single opcode payload | `GainMap` |
 | `Samples/TrimsBound.bin` | Single opcode payload | `TrimBounds` |
 | `Samples/grid.tiff`, `solid*.tiff`, `camera_070949.tiff` | LZW / Deflate RGB TIFFs | Not opcode samples — used by the TIFF reader / preview pipeline tests |
-| `Samples/dng/extras/` | 27 duplicate DNGs (`20161129-DJI_0010.DNG`, the other 7 Mavic 3 Pro frames, and the `DNG for Yodani/` subfolder of 18 Phantom 4 frames with `.JPG` companions) | Same opcode sets as the curated DJI samples — kept for cases where shutter-count-varying `FixBadPixelsList` payloads matter |
+| `Samples/dng/extras/IMG_5210.DNG` | Apple iPhone 15 Pro Max — the only **LinearRaw** sample in the collection (photometric 34892, already demosaiced) | none |
+| `Samples/dng/extras/a*.dng` (6 files) | FiveK CFA training DNGs — Nikon D70, Canon EOS 40D, Canon EOS 10D, Fujifilm FinePix S2Pro, Kodak DCS460, Sony DSLR-A900. Useful for testing the CFA reader and colour transform without opcodes. | none |
+| `Samples/dng/extras/` (DJI duplicates) | `20161129-DJI_0010.DNG`, the other 7 Mavic 3 Pro frames, and the `DNG for Yodani/` subfolder of 18 Phantom 4 frames with `.JPG` companions | Same opcode sets as the curated DJI samples — kept for cases where shutter-count-varying `FixBadPixelsList` payloads matter |
 
-So out of 14 spec opcodes, real DNG samples now cover **4** (`FixBadPixelsList`, `GainMap`, `WarpRectilinear`, plus the per-Bayer-plane `GainMap` chain on the Pixel 6) and synthetic `.bin` payloads cover **4** (`WarpRectilinear`, `FixVignetteRadial`, `GainMap`, `TrimBounds`).
+So out of 14 spec opcodes, real DNG samples cover **4** (`FixBadPixelsList`, `GainMap`, `WarpRectilinear`, plus the per-Bayer-plane `GainMap` chain on the Pixel 6) and synthetic `.bin` payloads cover **4** (`WarpRectilinear`, `FixVignetteRadial`, `GainMap`, `TrimBounds`).
 
 ## Where we still need real test material
 
