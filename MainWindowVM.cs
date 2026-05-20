@@ -169,6 +169,24 @@ public partial class MainWindowVM : ObservableObject
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+    // Initialises the editor with a pre-built reference image — used at
+    // startup to show a synthetic grid so the first-launch UX doesn't
+    // depend on any bundled sample file (relative paths were brittle —
+    // they resolved correctly only when CWD happened to match the build
+    // output dir).
+    public void LoadReferenceBuffer(PixelBuffer buffer, string title = null)
+    {
+        var img = new Image();
+        img.LoadFromBuffer(buffer);
+        _originalImage = img;
+        _openedFilename = null;
+        ColorInfo = null;
+        DecodeGamma = false;
+        RebuildWorkingImage();
+        Metadata = new System.Collections.Generic.List<DngMetadata.Entry>();
+        SetWindowTitle(title ?? "");
+    }
+
     // Produces the working ImgSrc — a clone of the loaded full-resolution
     // image, downsampled to <= 1920x1080 unless ProcessAtFullResolution is
     // set. The opcode chain runs on this working copy for responsiveness.

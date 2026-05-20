@@ -10,10 +10,57 @@ namespace DngOpcodesEditor
         public MainWindow()
         {
             InitializeComponent();
-            ViewModel.OpenImage(@"Samples\grid.tiff");
-            ViewModel.ImportBin(@"Samples\FixVignetteRadial.bin");
-            ViewModel.ImportBin(@"Samples\WarpRectilinear.bin");
+            // Default reference image + two demo opcodes — generated entirely
+            // in code so the first-launch UX doesn't depend on any external
+            // file. Previously the constructor loaded `Samples\grid.tiff` and
+            // two `.bin` payloads via *relative* paths, which only worked when
+            // the process CWD happened to be the build-output directory.
+            ViewModel.LoadReferenceBuffer(BuildReferenceGrid(640, 480, 32), "Reference Grid");
+            AddDemoOpcodes();
             _ = ViewModel.ApplyOpcodes();
+        }
+
+        // 640x480 white grid on black lines every `cellSize` pixels. Cheap to
+        // make and gives every opcode something visibly structured to act on.
+        static PixelBuffer BuildReferenceGrid(int width, int height, int cellSize)
+        {
+            var pixels = new ulong[width * height];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    bool onLine = x % cellSize == 0 || y % cellSize == 0;
+                    ushort v = onLine ? (ushort)0 : (ushort)65535;
+                    pixels[x + y * width] = v | ((ulong)v << 16) | ((ulong)v << 32) | (65535UL << 48);
+                }
+            }
+            return new PixelBuffer(pixels, width, height);
+        }
+
+        // Matches the parameters of the original `Samples/*.bin` files so the
+        // visual demo at startup is unchanged: a vignette gain that doubles
+        // the corners (k0 = 1.0) plus a mild Brown–Conrady rectilinear warp.
+        void AddDemoOpcodes()
+        {
+            var vignette = new OpcodeFixVignetteRadial { k0 = 1.0, cx = 0.5, cy = 0.5 };
+            vignette.header.id = OpcodeId.FixVignetteRadial;
+            vignette.header.dngVersion = 0x00000103;
+            vignette.header.flags = 2;
+            vignette.ListIndex = 2;
+            ViewModel.Opcodes.Add(vignette);
+
+            var warp = new OpcodeWarpRectilinear
+            {
+                planes = 1,
+                coefficients = new double[] { 0.75, 0.25, 0, 0, 0, 0 },
+                cx = 0.5,
+                cy = 0.5,
+            };
+            warp.header.id = OpcodeId.WarpRectilinear;
+            warp.header.dngVersion = 0x00000103;
+            warp.header.flags = 2;
+            warp.ListIndex = 3;
+            ViewModel.Opcodes.Add(warp);
         }
         void Image_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
