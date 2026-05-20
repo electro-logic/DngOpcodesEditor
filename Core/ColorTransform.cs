@@ -37,6 +37,9 @@ public static class ColorTransform
         {  0.0122982, -0.0204830,  1.3299098 },
     };
 
+    // DNG PCS white point (D50, normalised so Y = 1).
+    static readonly double[] D50WhiteXyz = { 0.9642, 1.0000, 0.8252 };
+
     // Builds the 3x3 matrix that takes a camera-native-RGB triple to
     // linear sRGB. `baselineExposureStops` (DNG tag 50730) is folded in as a
     // uniform 2^stops gain so a `BaselineExposure` of +0.86 stops, for
@@ -46,27 +49,35 @@ public static class ColorTransform
     {
         if (asShotNeutral == null || asShotNeutral.Length < 3)
             throw new ArgumentException("AsShotNeutral must have 3 components.", nameof(asShotNeutral));
+        // Proper DNG white balance per spec section 6 / Adobe's "Mapping
+        // Camera Color Space to CIE XYZ Space".
+        //
+        // The ColorMatrix maps PCS XYZ (D50) to camera-native RGB, so the
+        // camera's hypothetical response to D50 white is:
+        //     referenceNeutral = ColorMatrix * D50_white
+        // The diagonal white-balance matrix D rescales the actual scene
+        // neutral so that, after passing through inv(ColorMatrix), it lands
+        // exactly on D50_white in PCS:
+        //     D[i] = referenceNeutral[i] / AsShotNeutral[i]
+        // The full transform is then
+        //     m = XyzToSrgb_D65 · Bradford_D50→D65 · inv(ColorMatrix) · diag(D)
+        // which maps AsShotNeutral → (≈1, ≈1, ≈1) sRGB while keeping the
+        // rest of the gamut linear — previously a post-hoc row-normalisation
+        // produced the right white but distorted blues (sky turned purple).
+        var referenceNeutral = MultiplyVec(colorMatrix, D50WhiteXyz);
+        var d = new double[3];
+        for (int i = 0; i < 3; i++)
+            d[i] = Math.Abs(asShotNeutral[i]) > 1e-9
+                ? referenceNeutral[i] / asShotNeutral[i]
+                : 0.0;
+
         var invColor = Invert3x3(colorMatrix);
         var combined = Multiply3x3(XyzToSrgbD65, Multiply3x3(BradfordD50ToD65, invColor));
-        // Right-multiply by diag(1 / AsShotNeutral) to bake the white balance in.
         var m = new double[3, 3];
         for (int r = 0; r < 3; r++)
             for (int c = 0; c < 3; c++)
-                m[r, c] = combined[r, c] / asShotNeutral[c];
-        // Row-normalise so the scene white (a camera reading equal to
-        // AsShotNeutral) maps exactly to (1, 1, 1) linear sRGB. This is a
-        // common "white-balance after matrix" approximation used by simple
-        // raw converters — it produces correct white even when the colour
-        // matrix doesn't perfectly satisfy the DNG calibration assumptions
-        // (e.g. for some drone / Hasselblad combinations). Highly saturated
-        // colours can shift slightly as a side-effect, which is the trade.
-        double[] white = MultiplyVec(m, asShotNeutral);
-        for (int r = 0; r < 3; r++)
-        {
-            if (Math.Abs(white[r]) > 1e-9)
-                for (int c = 0; c < 3; c++)
-                    m[r, c] /= white[r];
-        }
+                m[r, c] = combined[r, c] * d[c];
+
         // BaselineExposure (in stops) applied last as a uniform 2^stops gain.
         if (baselineExposureStops != 0.0)
         {

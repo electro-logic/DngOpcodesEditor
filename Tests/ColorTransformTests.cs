@@ -130,10 +130,14 @@ public class ColorTransformTests
         var m = ColorTransform.BuildCameraToSrgb(neutral, matrix);
 
         var white = ColorTransform.MultiplyVec(m, neutral);
-        // After row-normalisation the as-shot scene white maps exactly to
-        // (1, 1, 1) linear sRGB regardless of camera quirks.
-        Assert.Equal(1.0, white[0], 6);
-        Assert.Equal(1.0, white[1], 6);
-        Assert.Equal(1.0, white[2], 6);
+        // With the proper DNG-spec WB diagonal the scene white maps to
+        // approximately (1, 1, 1) sRGB — small residual error comes from
+        // the rounding in the published XyzToSrgb_D65 / Bradford matrix
+        // coefficients (D65 white ends up as (1.0004, 1.0001, 0.9998)
+        // through the chain). Off-white colours are not distorted, which
+        // is the whole point of the change.
+        Assert.Equal(1.0, white[0], 2);
+        Assert.Equal(1.0, white[1], 2);
+        Assert.Equal(1.0, white[2], 2);
     }
 }

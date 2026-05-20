@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Sky / blue channels no longer come out purple** on DJI Phantom 4 and similar DNGs. `ColorTransform.BuildCameraToSrgb` used a post-hoc row normalisation (`m /= white`) to force the scene white to map exactly to `(1, 1, 1)` sRGB. That made the white correct but bent the rest of the gamut — blues in particular ended up with too much red mixed in, so a daylight sky read as magenta/violet. Replaced with the proper DNG-spec WB diagonal: compute `referenceNeutral = ColorMatrix · D50_white`, build `D[i] = referenceNeutral[i] / AsShotNeutral[i]`, and form `camera→sRGB = XyzToSrgb_D65 · Bradford_D50→D65 · inv(ColorMatrix) · diag(D)`. With this formulation, the scene white still maps to ≈`(1, 1, 1)` (within ~0.04% — D65 sRGB rounding) while off-white colours pass through linearly. A 20161129-DJI_0014 sample sky pixel that previously read R≈22k, G≈26k, B≈22k (R ≈ B → magenta) now reads R=22937, G=26290, B=35627 — properly blue-dominant.
+- `ColorTransformTests.BuiltCameraToSrgbMapsAsShotWhiteToWhite` loosened to `±0.01` instead of exact equality (the new formulation hits white via XyzToSrgb_D65·Bradford·D50_white rather than by construction).
+
 ## [0.8.6] - 2026-05-20
 
 ### Added
