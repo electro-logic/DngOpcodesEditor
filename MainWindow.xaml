@@ -24,6 +24,10 @@
             <RowDefinition/>
             <RowDefinition Height="5"/>
             <RowDefinition Height="Auto"/>
+            <!-- Options (checkboxes) on their own row… -->
+            <RowDefinition Height="5"/>
+            <RowDefinition Height="Auto"/>
+            <!-- …then the mouse-position / pixel-value text, so the two don't collide. -->
             <RowDefinition Height="5"/>
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
@@ -96,12 +100,12 @@
             </StackPanel>
         </Grid>
         <Image x:Name="imageSrc" Grid.Row="2" Source="{Binding ImgSrc.Bmp}" />
-        <Button Content="Open Reference Image" Grid.Row="6" Command="{Binding OpenImageCommand}" />
+        <Button Content="Open Reference Image" Grid.Row="8" Command="{Binding OpenImageCommand}" />
         <Image x:Name="imageDst" Grid.Row="2" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
-        <Button Content="Save Preview Image" Grid.Row="6" Grid.Column="2" Command="{Binding SaveImageCommand}" />
+        <Button Content="Save Preview Image" Grid.Row="8" Grid.Column="2" Command="{Binding SaveImageCommand}" />
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
-        <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Center" d:Text="Info" />
-        <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Right" d:Text="Position" />
+        <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="6" HorizontalAlignment="Center" d:Text="Info" />
+        <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="6" HorizontalAlignment="Right" d:Text="Position" />
 
         <StackPanel Grid.Row="4" Orientation="Horizontal">
             <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input (sRGB)"
