@@ -8,8 +8,8 @@
 	<AssemblyVersion>0.6.0.0</AssemblyVersion>
 	<FileVersion></FileVersion>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-	<!-- The Tests project lives in a subfolder; keep its files out of this build. -->
-	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
+	<!-- The Core, Tests and Avalonia projects live in subfolders; keep their files out of this build. -->
+	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**;Core\**;Avalonia\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -25,9 +25,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="exiftool.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <ProjectReference Include="Core\DngOpcodesEditor.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Samples\camera_070949.tiff">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

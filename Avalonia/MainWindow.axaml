@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DngOpcodesEditor.Avalonia"
+        x:Class="DngOpcodesEditor.Avalonia.MainWindow"
+        Title="DNG Opcodes Editor (Avalonia)"
+        Width="1200" Height="768"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.DataContext>
+    <vm:MainWindowVM />
+  </Window.DataContext>
+
+  <Grid Margin="10" RowDefinitions="220,10,*,5,Auto,5,30" ColumnDefinitions="*,10,*">
+
+    <Grid Grid.Row="0" Grid.ColumnSpan="3" ColumnDefinitions="2*,2*,Auto" >
+      <ListBox Grid.Column="0" ItemsSource="{Binding Opcodes}" SelectedItem="{Binding SelectedOpcode}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <DockPanel>
+              <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Enabled}" Margin="0,0,8,0" />
+              <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+            </DockPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <DataGrid Grid.Column="1" Margin="10,0,10,0"
+                ItemsSource="{Binding SelectedOpcode.Parameters}"
+                AutoGenerateColumns="False"
+                CanUserResizeColumns="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Parameter" Binding="{Binding Description}" IsReadOnly="True" />
+          <DataGridTextColumn Header="Value" Binding="{Binding Value, StringFormat='{}{0:F4}'}" />
+          <DataGridTemplateColumn Header="Slider" Width="*">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <Slider Value="{Binding Value, Mode=TwoWay}" Minimum="-10" Maximum="10" SmallChange="0.01" LargeChange="0.1" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <StackPanel Grid.Column="2" Spacing="6" MinWidth="180">
+        <Button Content="Import from DNG" Command="{Binding ImportDngCommand}" HorizontalAlignment="Stretch" />
+        <Button Content="Import from Binary" Command="{Binding ImportBinCommand}" HorizontalAlignment="Stretch" />
+        <Button Content="Export to DNG" Command="{Binding ExportDngCommand}" HorizontalAlignment="Stretch" />
+        <Button Content="Export to Binary" Command="{Binding ExportBinCommand}" HorizontalAlignment="Stretch" />
+        <Button Content="Delete Opcode" Command="{Binding DeleteOpcodeCommand}" HorizontalAlignment="Stretch" />
+        <Button Content="Clear" Command="{Binding ClearCommand}" HorizontalAlignment="Stretch" />
+        <ComboBox ItemsSource="{Binding OpcodeIds}" SelectedItem="{Binding SelectedOpcodeId}" HorizontalAlignment="Stretch" />
+        <Button Content="Add Opcode" Command="{Binding AddSelectedOpcodeCommand}" HorizontalAlignment="Stretch" />
+      </StackPanel>
+    </Grid>
+
+    <Image Grid.Row="2" Grid.Column="0" Source="{Binding ImgSrc.Displayed}" Stretch="Uniform" />
+    <Image Grid.Row="2" Grid.Column="2" Source="{Binding ImgDst.Displayed}" Stretch="Uniform" />
+
+    <StackPanel Grid.Row="4" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Left">
+      <CheckBox IsChecked="{Binding DecodeGamma}" Content="Decode Input Gamma" Margin="0,0,10,0" />
+      <CheckBox IsChecked="{Binding EncodeGamma}" Content="Encode Output Gamma" />
+    </StackPanel>
+
+    <Button Grid.Row="6" Grid.Column="0" Content="Open Reference Image" Command="{Binding OpenImageCommand}" />
+    <Button Grid.Row="6" Grid.Column="2" Content="Save Preview Image" Command="{Binding SaveImageCommand}" />
+  </Grid>
+</Window>

@@ -27,7 +27,6 @@ public partial class MainWindowVM : ObservableObject
     OpcodeId _selectedOpcodeId = OpcodeId.FixVignetteRadial;
     public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
     readonly string SAMPLES_DIR = Path.Combine(AppContext.BaseDirectory, "Samples");
-    readonly string EXIFTOOL_PATH = Path.Combine(AppContext.BaseDirectory, "exiftool.exe");
     // Re-entrancy guard: rapid edits (ex. dragging a slider) coalesce into a
     // single trailing run instead of stacking concurrent passes.
     bool _applyRunning, _applyPending;
@@ -74,9 +73,22 @@ public partial class MainWindowVM : ObservableObject
         try
         {
             var img = new Image();
-            int bpp = img.Open(filename);
+            // DNG files are routed through the built-in CFA reader so users no
+            // longer need to develop the file with dcraw_emu first. Other
+            // formats (TIFF, PNG, ...) go through WPF's BitmapDecoder.
+            if (Path.GetExtension(filename).Equals(".dng", StringComparison.OrdinalIgnoreCase))
+            {
+                var buffer = DngRawReader.Read(File.ReadAllBytes(filename));
+                img.LoadFromBuffer(buffer);
+                // Raw CFA data is linear; no input-gamma decode required.
+                DecodeGamma = false;
+            }
+            else
+            {
+                int bpp = img.Open(filename);
+                DecodeGamma = bpp <= 32;
+            }
             ImgSrc = img;
-            DecodeGamma = bpp <= 32;
             ImgDst = ImgSrc.Clone();
             SetWindowTitle(filename);
         }
@@ -157,21 +169,16 @@ public partial class MainWindowVM : ObservableObject
     }
     public void ImportDng(string filename)
     {
-        if (!File.Exists(EXIFTOOL_PATH))
-        {
-            MessageBox.Show($"ExifTool was not found at:\n{EXIFTOOL_PATH}\n\nIt is required to import opcodes from DNG files.",
-                "ExifTool missing", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
         try
         {
             Mouse.OverrideCursor = Cursors.Wait;
+            var tiff = File.ReadAllBytes(filename);
             bool found = false;
-            // Import OpcodeList1, OpcodeList2 and OpcodeList3
+            // Import OpcodeList1, OpcodeList2 and OpcodeList3 from any IFD.
             for (int listIndex = 1; listIndex < 4; listIndex++)
             {
-                var bytes = RunExifTool($"-b -OpcodeList{listIndex} \"{filename}\"");
-                if (bytes.Length > 0)
+                var bytes = TiffFile.ReadOpcodeList(tiff, listIndex);
+                if (bytes != null && bytes.Length > 0)
                 {
                     found = true;
                     foreach (Opcode opcode in ImportBin(bytes))
@@ -243,12 +250,6 @@ public partial class MainWindowVM : ObservableObject
     [RelayCommand]
     void ExportDng()
     {
-        if (!File.Exists(EXIFTOOL_PATH))
-        {
-            MessageBox.Show($"ExifTool was not found at:\n{EXIFTOOL_PATH}\n\nIt is required to export opcodes to DNG files.",
-                "ExifTool missing", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
         // OpcodeList1: applied as read directly from the file
         // OpcodeList2: applied after mapping to linear reference values
         // OpcodeList3: applied after demosaicing
@@ -262,6 +263,7 @@ public partial class MainWindowVM : ObservableObject
         try
         {
             Mouse.OverrideCursor = Cursors.Wait;
+            var tiff = File.ReadAllBytes(dialog.FileName);
             // Each OpcodeList tag is written from the opcodes that were tagged
             // with the matching ListIndex.
             for (int listIndex = 1; listIndex < 4; listIndex++)
@@ -269,11 +271,10 @@ public partial class MainWindowVM : ObservableObject
                 var listOpcodes = Opcodes.Where(o => o.ListIndex == listIndex).ToArray();
                 if (listOpcodes.Length == 0)
                     continue;
-                string tmpFile = Path.Combine(AppContext.BaseDirectory, $"tmpOpcodeList{listIndex}.bin");
-                File.WriteAllBytes(tmpFile, new OpcodesWriter().WriteOpcodeList(listOpcodes));
-                RunExifTool($"-overwrite_original \"-OpcodeList{listIndex}#<={tmpFile}\" \"{dialog.FileName}\"");
-                File.Delete(tmpFile);
+                var payload = new OpcodesWriter().WriteOpcodeList(listOpcodes);
+                tiff = TiffFile.WriteOpcodeList(tiff, listIndex, payload);
             }
+            File.WriteAllBytes(dialog.FileName, tiff);
         }
         catch (Exception ex)
         {
@@ -299,19 +300,6 @@ public partial class MainWindowVM : ObservableObject
     {
         Opcodes.Clear();
         await ApplyOpcodes();
-    }
-    byte[] RunExifTool(string arguments)
-    {
-        using var ms = new MemoryStream();
-        var process = Process.Start(new ProcessStartInfo(EXIFTOOL_PATH, arguments)
-        {
-            RedirectStandardOutput = true,
-            CreateNoWindow = true,
-            UseShellExecute = false
-        });
-        process.StandardOutput.BaseStream.CopyTo(ms);
-        process.WaitForExit();
-        return ms.ToArray();
     }
     Opcode[] ImportBin(byte[] binaryData) => new OpcodesReader().ReadOpcodeList(binaryData);
     static void ApplyGamma(Image img, float exponent)
