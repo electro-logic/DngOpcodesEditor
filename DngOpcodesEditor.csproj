@@ -5,7 +5,7 @@
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Nullable>disable</Nullable>
     <UseWPF>true</UseWPF>
-	<AssemblyVersion>0.8.0.0</AssemblyVersion>
+	<AssemblyVersion>0.8.5.0</AssemblyVersion>
 	<FileVersion></FileVersion>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	<!-- The Core, Tests and Cli projects live in subfolders; keep their files out of this build. -->
