@@ -446,7 +446,14 @@ public partial class MainWindowVM : ObservableObject
                 _applyPending = false;
                 Mouse.OverrideCursor = Cursors.Wait;
                 var dst = ImgSrc.Clone();
-                var ops = Opcodes.Where(o => o.Enabled).ToArray();
+                // OpcodeList2 opcodes target *linearised CFA* data per the DNG
+                // spec and are applied by DngRawReader before demosaicing; we
+                // skip them here so they don't get re-applied to the (already
+                // corrected) demosaiced RGB buffer. Toggling an L2 opcode in
+                // the UI therefore has no effect on the preview without
+                // reloading the file — a known limitation, documented in the
+                // README.
+                var ops = Opcodes.Where(o => o.Enabled && o.ListIndex != 2).ToArray();
                 bool decode = DecodeGamma, encode = EncodeGamma;
                 bool doColorTransform = ApplyColorTransform && ColorInfo != null;
                 var cameraToSrgb = ColorInfo?.CameraToSrgb;

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using DngOpcodesEditor;
 
 namespace DngOpcodesEditor.Cli;
@@ -39,7 +40,8 @@ public static class Program
 
     static int List(string[] args)
     {
-        if (args.Length < 2) return Usage("list <dng>");
+        if (args.Length < 2) return Usage("list <dng> [--verbose]");
+        bool verbose = Array.Exists(args, a => a == "--verbose" || a == "-v");
         var tiff = File.ReadAllBytes(args[1]);
         bool any = false;
         for (int listIndex = 1; listIndex < 4; listIndex++)
@@ -50,7 +52,27 @@ public static class Program
             Console.WriteLine($"OpcodeList{listIndex} ({bytes.Length} bytes):");
             var opcodes = new OpcodesReader().ReadOpcodeList(bytes);
             for (int i = 0; i < opcodes.Length; i++)
+            {
                 Console.WriteLine($"  [{i,2}] {opcodes[i].header.id}");
+                if (verbose)
+                {
+                    foreach (var f in opcodes[i].GetType().GetFields(
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.Instance))
+                    {
+                        var v = f.GetValue(opcodes[i]);
+                        if (v is float[] fa)
+                            v = $"float[{fa.Length}] min={(fa.Length > 0 ? fa.Min() : 0):F4} max={(fa.Length > 0 ? fa.Max() : 0):F4} avg={(fa.Length > 0 ? fa.Average() : 0):F4}";
+                        else if (v is double[] da)
+                            v = $"double[{da.Length}] = [{string.Join(", ", da.Take(8).Select(x => x.ToString("F4")))}{(da.Length > 8 ? ", …" : "")}]";
+                        else if (v is uint[] ua)
+                            v = $"uint[{ua.Length}] = [{string.Join(", ", ua.Take(8))}{(ua.Length > 8 ? ", …" : "")}]";
+                        else if (v is ushort[] sa)
+                            v = $"ushort[{sa.Length}] min={(sa.Length > 0 ? sa.Min() : 0)} max={(sa.Length > 0 ? sa.Max() : 0)}";
+                        Console.WriteLine($"        {f.Name,-20} = {v}");
+                    }
+                }
+            }
         }
         if (!any)
             Console.WriteLine("No OpcodeList tags found.");

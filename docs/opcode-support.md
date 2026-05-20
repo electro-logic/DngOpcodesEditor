@@ -24,7 +24,7 @@ Each opcode lives in its own file under `Core/Opcodes/<Name>.cs` (parts of a sin
 |  6 | TrimBounds              |  ✓   |   ✓   |    ✓    | Trimmed pixels are masked to black (no resize). |
 |  7 | MapTable                |  ✓   |   ✓   |    ✓    | 16-bit LUT; honours region, plane range and row/col pitch. |
 |  8 | MapPolynomial           |  ✓   |   ✓   |    ✓    | Polynomial of arbitrary degree in normalised `[0,1]` space. |
-|  9 | GainMap                 |  ✓   |   ✓   |    ✓    | Edge replication outside the map; bilinear interpolation between map points; multi-plane. |
+|  9 | GainMap                 |  ✓   |   ✓   |    ✓    | Edge replication outside the map; bilinear interpolation between map points; multi-plane. **OpcodeList2 GainMaps** (per-Bayer-plane shading correction) are applied to the linearised CFA buffer before demosaicing — toggling them in the UI does not affect the preview without reloading the file. OpcodeList3 GainMaps (multi-plane on RGB) remain interactive. |
 | 10 | DeltaPerRow             |  ✓   |   ✓   |    ✓    | Float deltas added in normalised space; honours `top`/`rowPitch`. |
 | 11 | DeltaPerColumn          |  ✓   |   ✓   |    ✓    | As above, columns. |
 | 12 | ScalePerRow             |  ✓   |   ✓   |    ✓    | Multiplicative gain per row. |

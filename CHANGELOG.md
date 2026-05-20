@@ -7,6 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- **OpcodeList2 GainMaps are now applied to the linearised CFA buffer before demosaicing, not on the demosaiced RGB.** Pixel 6 DNGs (and any other camera that ships a per-Bayer-plane lens-shading correction in L2) used to render dramatically wrong colours — every preview came out bright red. The Pixel 6 ships four GainMaps in OpcodeList2 with `plane=0`, `(rowPitch, colPitch) = (2, 2)` and `(top, left)` offsets of `(0,0)/(0,1)/(1,0)/(1,1)`, which is the spec idiom for addressing the four Bayer subpixels in a 2×2 CFA cell; the gain values average ~2× and peak around 4.5× toward the corners. Applied to demosaiced RGB they all collapsed onto the R channel (the only channel at index `plane=0`), so every pixel got R≈2× while G and B stayed put — hence the red shift. The fix:
+  - `DngRawReader` now linearises CFA samples first (new `LineariseCfaInPlace`), then runs L2 GainMaps over that buffer (new `ApplyGainMapToCfa`), then demosaics (new `BilinearDemosaicLinearised`).
+  - `MainWindowVM.ApplyOpcodes` and `CLI preview` skip opcodes with `ListIndex == 2` to avoid double-application — they're already baked into the decoded image.
+  - Known limitation: editing an L2 opcode's parameters or toggling it in the UI no longer affects the preview without reloading the file. The L2 list is still shown for inspection.
+  - Other CFA-targeting L2 opcode types (`FixBadPixels*`, `MapTable`, `MapPolynomial`, `Delta*Per*`, `Scale*Per*`) are still skipped at decode (with a debug log) — no real-world samples in the corpus exercise them. Treating them analogously is future work.
+- 3 new tests under `Tests/OpcodeList2CfaTests.cs` pin: (1) a GainMap with `pitch=2` only multiplies its target Bayer subgrid, (2) overflow clamps to 65 535 rather than wrapping, (3) bilinear interpolation across the gain field matches expected midpoint values. 74 tests pass.
+- Verified visually on the corpus: Pixel 6 now renders the actual scene (teal clock on wood floor), Mavic 3 Pro sunset and Phantom 4 autumn landscape render identically to before (those files carry no L2 opcodes — only L1 or L3).
+
 ## [0.8.8] - 2026-05-20
 
 ### Fixed

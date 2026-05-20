@@ -91,7 +91,20 @@ public static class DngRawReader
         if (photometric == 32803)
         {
             var cfaPattern = ReadCfaPattern(tiff, isLE, ifd);
-            BilinearDemosaic(samples, rgb, width, height, cfaPattern, blackLevels, whiteLevel);
+            // 1. Linearise CFA samples to 16-bit using per-Bayer-position
+            //    black levels and the white level.
+            LineariseCfaInPlace(samples, width, height, blackLevels, whiteLevel);
+            // 2. Apply OpcodeList2 to the linearised CFA. Per DNG spec, L2
+            //    runs after linearisation but *before* demosaicing — this is
+            //    where lens-shading-correction GainMaps belong. Doing it on
+            //    the demosaiced RGB buffer (what the editor used to do) is
+            //    catastrophically wrong when the maps are per-Bayer-plane
+            //    (e.g. Pixel 6: 4× GainMap, plane=0, rowPitch/colPitch=2)
+            //    because they all collapse onto the R channel.
+            ApplyOpcodeList2OnCfa(tiff, samples, width, height);
+            // 3. Demosaic the linearised samples (no further black/white
+            //    correction — already done in step 1).
+            BilinearDemosaicLinearised(samples, rgb, width, height, cfaPattern);
         }
         else // 34892 LinearRaw or 2 RGB — both are interleaved R/G/B per pixel.
         {
@@ -304,26 +317,107 @@ public static class DngRawReader
     static ushort Quantize(ushort raw, double black, double scale) =>
         (ushort)Math.Clamp(Math.Round((raw - black) * scale), 0, 65535);
 
-    // Bilinear demosaic. The output RGB pixel at (x,y) is reconstructed by:
-    //   - keeping the value of the channel actually sampled at (x,y)
-    //   - averaging horizontally/vertically the neighbors for the channel that
-    //     is sampled on the same row OR column as (x,y) in the CFA pattern
-    //   - averaging diagonally for the channel sampled at neither.
-    static void BilinearDemosaic(ushort[] raw, UInt64[] rgb, int W, int H, uint[] cfa, uint[] black, uint white)
+    // Linearise CFA samples in place: subtract per-Bayer-position black
+    // level and scale so the white level lands at 65535.
+    static void LineariseCfaInPlace(ushort[] samples, int W, int H, uint[] black, uint white)
     {
         double[] blackByPos = new double[4];
         for (int i = 0; i < 4; i++)
             blackByPos[i] = black.Length == 4 ? black[i] : (black.Length > 0 ? black[0] : 0);
         double whiteMinusBlack = Math.Max(1.0, white - blackByPos[0]);
         double scale = 65535.0 / whiteMinusBlack;
+        Parallel.For(0, H, y =>
+        {
+            int rowOff = y * W;
+            for (int x = 0; x < W; x++)
+            {
+                int pos = (y & 1) * 2 + (x & 1);
+                double v = (samples[rowOff + x] - blackByPos[pos]) * scale;
+                samples[rowOff + x] = (ushort)Math.Clamp(Math.Round(v), 0, 65535);
+            }
+        });
+    }
 
+    // Apply OpcodeList2 to the already-linearised CFA buffer. Currently
+    // handles GainMap (the only L2 opcode in the corpus); other CFA-targeting
+    // opcodes are skipped with a debug warning. Errors during opcode parsing
+    // are swallowed — a malformed L2 should not block loading the image.
+    static void ApplyOpcodeList2OnCfa(byte[] tiff, ushort[] samples, int W, int H)
+    {
+        var payload = TiffFile.ReadOpcodeList(tiff, 2);
+        if (payload == null || payload.Length == 0)
+            return;
+        Opcode[] opcodes;
+        try { opcodes = new OpcodesReader().ReadOpcodeList(payload); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"OpcodeList2 parse failed: {ex.Message}"); return; }
+        foreach (var op in opcodes)
+        {
+            if (op is OpcodeGainMap g)
+                ApplyGainMapToCfa(samples, W, H, g);
+            else
+                System.Diagnostics.Debug.WriteLine($"OpcodeList2 {op.header.id} on CFA not implemented; skipped.");
+        }
+    }
+
+    // Per-Bayer-plane GainMap on the linearised CFA buffer. The opcode's
+    // (top, left, rowPitch, colPitch) targets one Bayer subgrid (e.g.
+    // top=0 left=0 pitch=2 picks every (even, even) pixel — one of the four
+    // Bayer positions). The gain field itself is bilinearly interpolated
+    // and clamped at the edges per spec.
+    //
+    // Public so tests can exercise the CFA-targeting math directly without
+    // building a synthetic DNG.
+    public static void ApplyGainMapToCfa(ushort[] samples, int W, int H, OpcodeGainMap p)
+    {
+        if (p.mapGains.Length == 0 || p.mapPointsH == 0 || p.mapPointsV == 0)
+            return;
+        int top = (int)Math.Clamp(p.top, 0u, (uint)H);
+        int left = (int)Math.Clamp(p.left, 0u, (uint)W);
+        int bottom = (int)Math.Clamp(p.bottom, 0u, (uint)H);
+        int right = (int)Math.Clamp(p.right, 0u, (uint)W);
+        int rowPitch = (int)Math.Max(1, p.rowPitch);
+        int colPitch = (int)Math.Max(1, p.colPitch);
+        int mapPointsH = (int)p.mapPointsH;
+        int mapPointsV = (int)p.mapPointsV;
+        int mapPlanes = (int)Math.Max(1, p.mapPlanes);
+        // CFA gain maps are single-plane (mapPlanes typically 1). MathHelper
+        // .BilinearInterpolation takes (array, x, y) and reads array[x, y],
+        // so the map is built [H, V] (x-major) to match that convention.
+        var map = new float[mapPointsH, mapPointsV];
+        for (int v = 0; v < mapPointsV; v++)
+            for (int h = 0; h < mapPointsH; h++)
+                map[h, v] = p.mapGains[(v * mapPointsH + h) * mapPlanes];
+        Parallel.For(top, bottom, y =>
+        {
+            if ((y - top) % rowPitch != 0) return;
+            double yRel = y / (H - 1.0);
+            double yMap = Math.Clamp((yRel - p.mapOriginV) / p.mapSpacingV, 0.0, mapPointsV - 1.0);
+            int rowOff = y * W;
+            for (int x = left; x < right; x++)
+            {
+                if ((x - left) % colPitch != 0) continue;
+                double xRel = x / (W - 1.0);
+                double xMap = Math.Clamp((xRel - p.mapOriginH) / p.mapSpacingH, 0.0, mapPointsH - 1.0);
+                double gain = MathHelper.BilinearInterpolation(map, xMap, yMap);
+                double v = samples[rowOff + x] * gain;
+                samples[rowOff + x] = (ushort)Math.Clamp(Math.Round(v), 0, 65535);
+            }
+        });
+    }
+
+    // Bilinear demosaic on already-linearised CFA samples (i.e. after
+    // LineariseCfaInPlace). Reconstructs RGB by:
+    //   - keeping the value of the channel actually sampled at (x,y)
+    //   - averaging horizontally/vertically for the channel that's sampled
+    //     on the same row OR column as (x,y) in the CFA pattern
+    //   - averaging diagonally for the channel sampled at neither.
+    static void BilinearDemosaicLinearised(ushort[] samples, UInt64[] rgb, int W, int H, uint[] cfa)
+    {
         double Sample(int sx, int sy)
         {
             sx = Math.Clamp(sx, 0, W - 1);
             sy = Math.Clamp(sy, 0, H - 1);
-            int pos = (sy & 1) * 2 + (sx & 1);
-            double v = (raw[sy * W + sx] - blackByPos[pos]) * scale;
-            return Math.Clamp(v, 0.0, 65535.0);
+            return samples[sy * W + sx];
         }
 
         Parallel.For(0, H, y =>
