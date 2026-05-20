@@ -7,6 +7,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-05-20
+
 ### Fixed
 
 - **OpcodeList2 GainMaps are now applied to the linearised CFA buffer before demosaicing, not on the demosaiced RGB.** Pixel 6 DNGs (and any other camera that ships a per-Bayer-plane lens-shading correction in L2) used to render dramatically wrong colours — every preview came out bright red. The Pixel 6 ships four GainMaps in OpcodeList2 with `plane=0`, `(rowPitch, colPitch) = (2, 2)` and `(top, left)` offsets of `(0,0)/(0,1)/(1,0)/(1,1)`, which is the spec idiom for addressing the four Bayer subpixels in a 2×2 CFA cell; the gain values average ~2× and peak around 4.5× toward the corners. Applied to demosaiced RGB they all collapsed onto the R channel (the only channel at index `plane=0`), so every pixel got R≈2× while G and B stayed put — hence the red shift. The fix:
