@@ -71,30 +71,27 @@
                         <Setter Property="Padding" Value="5" />
                     </Style>
                 </StackPanel.Resources>
-                <Button Content="Import from DNG" Click="btnImportDNG_Click" />
-                <Button Content="Import from Binary" Click="btnImportBin_Click" />
-                <Button Content="Export to DNG" Click="btnExportDNG_Click" />
-                <Button Content="Export to Binary" Click="btnExportBin_Click" />
-                <!--<Button Content="Move Up" Click="btnMoveUp_Click" />
-                <Button Content="Move Down" Click="btnMoveDown_Click" />-->
-                <Button Content="Delete Opcode" Click="btnDeleteOpcode_Click" />
-                <Button Content="Clear" Click="btnClear_Click" />
-                <!--<ComboBox x:Name="cbOpcodesIDs" SelectedIndex="0" />
-                <Button Content="Add Opcode" Click="btnAddOpcode_Click" />-->
+                <Button Content="Import from DNG" Command="{Binding ImportDngCommand}" />
+                <Button Content="Import from Binary" Command="{Binding ImportBinCommand}" />
+                <Button Content="Export to DNG" Command="{Binding ExportDngCommand}" />
+                <Button Content="Export to Binary" Command="{Binding ExportBinCommand}" />
+                <Button Content="Delete Opcode" Command="{Binding DeleteOpcodeCommand}" />
+                <Button Content="Clear" Command="{Binding ClearCommand}" />
+                <ComboBox Margin="0,0,0,10" ItemsSource="{Binding OpcodeIds}" SelectedItem="{Binding SelectedOpcodeId}" />
+                <Button Content="Add Opcode" Command="{Binding AddSelectedOpcodeCommand}" />
             </StackPanel>
         </Grid>
         <Image x:Name="imageSrc" Grid.Row="2" Source="{Binding ImgSrc.Bmp}" />
-        <Button Content="Open Reference Image" Grid.Row="6" Click="btnOpenImage_Click" />
+        <Button Content="Open Reference Image" Grid.Row="6" Command="{Binding OpenImageCommand}" />
         <Image x:Name="imageDst" Grid.Row="2" Source="{Binding ImgDst.Bmp}" Grid.Column="2"/>
-        <Button Content="Save Preview Image" Grid.Row="6" Grid.Column="2" Click="btnSaveImage_Click" />
-        <!--<Button Grid.Column="2" Content="Apply Opcodes" Grid.Row="5" Click="btnApplyOpcodes_Click"/>-->
+        <Button Content="Save Preview Image" Grid.Row="6" Grid.Column="2" Command="{Binding SaveImageCommand}" />
         <GridSplitter Grid.ColumnSpan="3" Grid.Row="1" HorizontalAlignment="Stretch" Background="#00F0F0F0" />
         <TextBlock x:Name="tbInfo" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Center" d:Text="Info" />
         <TextBlock x:Name="tbPosition" Grid.ColumnSpan="3" Grid.Row="4" HorizontalAlignment="Right" d:Text="Position" />
 
         <StackPanel Grid.Row="4" Orientation="Horizontal">
-            <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" />
-            <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output Gamma" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked" Margin="5,0,0,0" />
+            <CheckBox IsChecked="{Binding DecodeGamma,Mode=TwoWay}" Content="Decode Input Gamma" />
+            <CheckBox IsChecked="{Binding EncodeGamma,Mode=TwoWay}" Content="Encode Output Gamma" Margin="5,0,0,0" />
         </StackPanel>
         
     </Grid>

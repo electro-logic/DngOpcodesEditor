@@ -6,16 +6,26 @@ Read, Write, Modify and Preview DNG Opcodes
 
 Opcodes parameters can be freely changed to see the effect on the image in real-time.
 
-Supported opcodes:
+Supported opcodes (read, write and preview):
 
+- WarpRectilinear (multi-plane, Brown-Conrady distortion model, bicubic resampling)
 - FixVignetteRadial
-- WarpRectilinear (single plane only, based on the Brown-Conrady distortion model)
+- FixBadPixelsConstant
+- FixBadPixelsList
 - TrimBounds
-- GainMap (preliminary implementation)
+- MapTable
+- MapPolynomial
+- GainMap
+- DeltaPerRow / DeltaPerColumn
+- ScalePerRow / ScalePerColumn
+
+WarpFisheye is read and written but not previewed yet. FixBadPixels and the
+region opcodes are designed for raw CFA data; on a demosaiced RGB preview they
+are approximated.
 
 Required Software:
 
-- [.NET Desktop Runtime 6](https://dotnet.microsoft.com/en-us/download/dotnet/6.0)
+- [.NET Desktop Runtime 9](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
 - [ExifTool](https://exiftool.org)
 
 Useful links:
@@ -28,9 +38,10 @@ Notes:
 - This project is not an official DNG Tool and may not be fully compliant with DNG Specifications.
 - Metadata reading/writing is based on ExifTool. Thank you Phil!
 - Open an issue if you need a specific opcode implemented
-- Export to DNG writes the OpcodeList3 tag only. You may need to write IFD0:OpcodeList3 if SubIFD is not defined in your DNG files.
+- Import and Export cover OpcodeList1, OpcodeList2 and OpcodeList3. Each opcode keeps the list it belongs to and is exported back to the matching tag.
 - FixVignetteRadial may require adjusting the strenght in some RAW processors (ex. Capture One)
-- Perf branch (not merged yet) is using Span and .NET 9 to improve performances (around 40% faster)
+- Opcode processing uses Span and .NET 9 and runs off the UI thread to keep the preview responsive.
+- Reader/Writer round-trip tests live in the Tests project (run `dotnet test`).
 
 F.A.Q:
 

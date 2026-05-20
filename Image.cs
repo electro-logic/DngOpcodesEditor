@@ -21,7 +21,9 @@ public partial class Image : ObservableObject
     BitmapSource _bmp;
     public int Open(string filename)
     {
-        var decoder = BitmapDecoder.Create(new Uri(filename, UriKind.Relative), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        // Resolve to an absolute path: file dialogs return absolute paths, which
+        // are invalid when wrapped as a relative Uri.
+        var decoder = BitmapDecoder.Create(new Uri(Path.GetFullPath(filename)), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         var frame = decoder.Frames[0];
         // Convert to 16 bit/channel internal format
         var bmp = new FormatConvertedBitmap(frame, PixelFormats.Rgba64, null, 0);
@@ -56,6 +58,14 @@ public partial class Image : ObservableObject
         clone._bmpRgba64 = _bmpRgba64.Clone();
         return clone;
     }
+    // Clones only the pixel buffer, without the WPF bitmap. Unlike Clone() this
+    // is safe to call off the UI thread (no DispatcherObject is touched).
+    public Image ClonePixels() => new Image
+    {
+        _pixels = (UInt64[])_pixels.Clone(),
+        _width = _width,
+        _height = _height
+    };
     public ref UInt64 this[int x, int y] => ref GetPixel(x, y);
     public void SaveImage(string filename)
     {

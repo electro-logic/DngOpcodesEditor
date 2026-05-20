@@ -1,7 +1,7 @@
-﻿using System.Diagnostics;
 using System;
-using System.Windows;
+using System.Diagnostics;
 using System.IO;
+using System.Windows;
 
 namespace DngOpcodesEditor
 {
@@ -10,26 +10,14 @@ namespace DngOpcodesEditor
         public MainWindow()
         {
             InitializeComponent();
-            //cbOpcodesIDs.ItemsSource = Enum.GetValues(typeof(OpcodeId));
             ViewModel.OpenImage(@"Samples\grid.tiff");
             ViewModel.ImportBin(@"Samples\FixVignetteRadial.bin");
-            ViewModel.ImportBin(@"Samples\WarpRectilinear.bin");            
-            //ViewModel.ImportBin(@"Samples\GainMap.bin");
-            //ViewModel.ImportBin(@"Samples\TrimsBound.bin");
-            ViewModel.ApplyOpcodes();
+            ViewModel.ImportBin(@"Samples\WarpRectilinear.bin");
+            _ = ViewModel.ApplyOpcodes();
         }
-        void btnImportDNG_Click(object sender, RoutedEventArgs e) { ViewModel.ImportDng(); ViewModel.ApplyOpcodes(); }
-        void btnImportBin_Click(object sender, RoutedEventArgs e) { ViewModel.ImportBin(); ViewModel.ApplyOpcodes(); }
-        void btnOpenImage_Click(object sender, RoutedEventArgs e) { ViewModel.OpenImage(); ViewModel.ApplyOpcodes(); }
-        void btnApplyOpcodes_Click(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
-        void btnDeleteOpcode_Click(object sender, RoutedEventArgs e) { ViewModel.Opcodes.Remove(ViewModel.SelectedOpcode); ViewModel.ApplyOpcodes(); }
-        void btnExportBin_Click(object sender, RoutedEventArgs e) => ViewModel.ExportBin();
-        void btnExportDNG_Click(object sender, RoutedEventArgs e) => ViewModel.ExportDNG();
-        void btnSaveImage_Click(object sender, RoutedEventArgs e) => ViewModel.SaveImage();
-        void btnClear_Click(object sender, RoutedEventArgs e) { ViewModel.Opcodes.Clear(); ViewModel.ApplyOpcodes(); }
         void Image_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (ViewModel.ImgSrc == null)
+            if (ViewModel.ImgSrc == null || ViewModel.ImgDst == null)
                 return;
 
             try
@@ -43,7 +31,7 @@ namespace DngOpcodesEditor
                 tbPosition.Text = $"X: {x} Y: {y}";
                 var src = ViewModel.ImgSrc.GetRgb16Pixel(x, y);
                 var dst = ViewModel.ImgDst.GetRgb16Pixel(x, y);
-                tbInfo.Text = $"{src[0].ToString("D3")} {src[1].ToString("D3")} {src[2].ToString("D3")} - {dst[0].ToString("D3")} {dst[1].ToString("D3")} {dst[2].ToString("D3")}";
+                tbInfo.Text = $"{src[0]:D3} {src[1]:D3} {src[2]:D3} - {dst[0]:D3} {dst[1]:D3} {dst[2]:D3}";
             }
             catch (Exception ex)
             {
@@ -74,16 +62,9 @@ namespace DngOpcodesEditor
                                 break;
                         }
                     }
-                    ViewModel.ApplyOpcodes();
+                    _ = ViewModel.ApplyOpcodes();
                 }
             }
         }
-        void CheckBox_Checked(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
-        void CheckBox_Unchecked(object sender, RoutedEventArgs e) => ViewModel.ApplyOpcodes();
-        /*
-        void btnMoveUp_Click(object sender, RoutedEventArgs e) { }
-        void btnMoveDown_Click(object sender, RoutedEventArgs e) { }
-        void btnAddOpcode_Click(object sender, RoutedEventArgs e) => ViewModel.AddOpcode((OpcodeId)cbOpcodesIDs.SelectedValue);
-        */
     }
 }

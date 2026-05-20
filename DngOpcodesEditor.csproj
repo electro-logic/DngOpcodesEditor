@@ -8,6 +8,8 @@
 	<AssemblyVersion>0.6.0.0</AssemblyVersion>
 	<FileVersion></FileVersion>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	<!-- The Tests project lives in a subfolder; keep its files out of this build. -->
+	<DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

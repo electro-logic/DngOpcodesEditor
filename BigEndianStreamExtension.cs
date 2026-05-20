@@ -1,28 +1,36 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.IO;
 
 public static class BigEndianStreamExtension
 {
+    public static UInt16 ReadUInt16(this Stream stream)
+    {
+        var buffer = new byte[2]; stream.ReadExactly(buffer); return BinaryPrimitives.ReadUInt16BigEndian(buffer);
+    }
     public static UInt32 ReadUInt32(this Stream stream)
     {
-        var buffer = new byte[4]; stream.Read(buffer); return BinaryPrimitives.ReadUInt32BigEndian(buffer);
+        var buffer = new byte[4]; stream.ReadExactly(buffer); return BinaryPrimitives.ReadUInt32BigEndian(buffer);
     }
     public static Int64 ReadInt64(this Stream stream)
     {
-        var buffer = new byte[8]; stream.Read(buffer); return BinaryPrimitives.ReadInt64BigEndian(buffer);
+        var buffer = new byte[8]; stream.ReadExactly(buffer); return BinaryPrimitives.ReadInt64BigEndian(buffer);
     }
     public static UInt64 ReadUInt64(this Stream stream)
     {
-        var buffer = new byte[8]; stream.Read(buffer); return BinaryPrimitives.ReadUInt64BigEndian(buffer);
+        var buffer = new byte[8]; stream.ReadExactly(buffer); return BinaryPrimitives.ReadUInt64BigEndian(buffer);
     }
     public static float ReadFloat(this Stream stream)
     {
-        var buffer = new byte[4]; stream.Read(buffer); return BinaryPrimitives.ReadSingleBigEndian(buffer);
+        var buffer = new byte[4]; stream.ReadExactly(buffer); return BinaryPrimitives.ReadSingleBigEndian(buffer);
     }
     public static double ReadDouble(this Stream stream)
     {
-        var buffer = new byte[8]; stream.Read(buffer); return BinaryPrimitives.ReadDoubleBigEndian(buffer);
+        var buffer = new byte[8]; stream.ReadExactly(buffer); return BinaryPrimitives.ReadDoubleBigEndian(buffer);
+    }
+    public static void WriteUInt16(this Stream stream, UInt16 value)
+    {
+        byte[] _buffer = new byte[2]; BinaryPrimitives.WriteUInt16BigEndian(_buffer, value); stream.Write(_buffer);
     }
     public static void WriteUInt32(this Stream stream, UInt32 value)
     {

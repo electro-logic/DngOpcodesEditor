@@ -1,15 +1,15 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 
 namespace DngOpcodesEditor;
 
@@ -17,15 +17,20 @@ public partial class MainWindowVM : ObservableObject
 {
     [ObservableProperty]
     ObservableCollection<Opcode> _opcodes = new ObservableCollection<Opcode>();
-    //[ObservableProperty]
-    //Dictionary<Opcode, int> _opcodeLists = new Dictionary<Opcode, int>();
     [ObservableProperty]
     Opcode _selectedOpcode;
     [ObservableProperty]
     Image _imgSrc, _imgDst;
     [ObservableProperty]
     bool _encodeGamma, _decodeGamma;
-    string SAMPLES_DIR = Path.Combine(Environment.CurrentDirectory, "Samples");
+    [ObservableProperty]
+    OpcodeId _selectedOpcodeId = OpcodeId.FixVignetteRadial;
+    public OpcodeId[] OpcodeIds { get; } = Enum.GetValues<OpcodeId>();
+    readonly string SAMPLES_DIR = Path.Combine(AppContext.BaseDirectory, "Samples");
+    readonly string EXIFTOOL_PATH = Path.Combine(AppContext.BaseDirectory, "exiftool.exe");
+    // Re-entrancy guard: rapid edits (ex. dragging a slider) coalesce into a
+    // single trailing run instead of stacking concurrent passes.
+    bool _applyRunning, _applyPending;
     public MainWindowVM()
     {
         EncodeGamma = true;
@@ -36,7 +41,7 @@ public partial class MainWindowVM : ObservableObject
             {
                 foreach (Opcode item in e.NewItems)
                 {
-                    item.PropertyChanged += (ps, pe) => ApplyOpcodes();
+                    item.PropertyChanged += (ps, pe) => _ = ApplyOpcodes();
                 }
             }
             if (!Opcodes.Contains(SelectedOpcode))
@@ -47,212 +52,383 @@ public partial class MainWindowVM : ObservableObject
     }
     public void SetWindowTitle(string filename = "")
     {
-
-        App.Current.MainWindow.Title = $"DNG Opcodes Editor v{Assembly.GetExecutingAssembly().GetName().Version.ToString()}";
+        var title = $"DNG Opcodes Editor v{Assembly.GetExecutingAssembly().GetName().Version}";
         if (!string.IsNullOrWhiteSpace(filename))
         {
-            App.Current.MainWindow.Title += $" - {Path.GetFileName(filename)}";
+            title += $" - {Path.GetFileName(filename)}";
         }
+        App.Current.MainWindow.Title = title;
     }
-    public void OpenImage()
+    [RelayCommand]
+    void OpenImage()
     {
-        var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*" };
-        dialog.InitialDirectory = SAMPLES_DIR;
+        var dialog = new OpenFileDialog() { Filter = "All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
         if (dialog.ShowDialog() == true)
         {
             OpenImage(dialog.FileName);
+            _ = ApplyOpcodes();
         }
     }
     public void OpenImage(string filename)
     {
-        ImgSrc = new Image();
-        int bpp = ImgSrc.Open(filename);
-        DecodeGamma = bpp <= 32 ? true : false;
-        ImgDst = ImgSrc.Clone();
-        SetWindowTitle(filename);
+        try
+        {
+            var img = new Image();
+            int bpp = img.Open(filename);
+            ImgSrc = img;
+            DecodeGamma = bpp <= 32;
+            ImgDst = ImgSrc.Clone();
+            SetWindowTitle(filename);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unable to open image:\n{filename}\n\n{ex.Message}", "Open Image",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
-    public void SaveImage()
+    [RelayCommand]
+    void SaveImage()
     {
-        var dialog = new SaveFileDialog() { Filter = "Tiff image (*.tiff)|*.tiff" };
-        dialog.FileName = "processed_" + DateTime.Now.ToString("hhmmss") + ".tiff";
+        if (ImgDst == null)
+            return;
+        var dialog = new SaveFileDialog()
+        {
+            Filter = "Tiff image (*.tiff)|*.tiff",
+            FileName = "processed_" + DateTime.Now.ToString("HHmmss") + ".tiff"
+        };
         if (dialog.ShowDialog() == true)
         {
-            SaveImage(dialog.FileName);
+            try
+            {
+                ImgDst.SaveImage(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to save image:\n{ex.Message}", "Save Image",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
-    public void SaveImage(string filename) => ImgDst.SaveImage(filename);
     public void AddOpcode(OpcodeId id)
     {
-        var header = new OpcodeHeader() { id = id };
-        switch (id)
+        Opcode op = id switch
         {
-            case OpcodeId.WarpRectilinear:
-                Opcodes.Add(new OpcodeWarpRectilinear() { header = header });
-                break;
-            case OpcodeId.FixVignetteRadial:
-                Opcodes.Add(new OpcodeFixVignetteRadial() { header = header });
-                break;
-            case OpcodeId.TrimBounds:
-                Opcodes.Add(new OpcodeTrimBounds() { header = header });
-                break;
-            default:
-                Opcodes.Add(new Opcode());
-                break;
+            OpcodeId.WarpRectilinear => new OpcodeWarpRectilinear { planes = 1, coefficients = new double[] { 1, 0, 0, 0, 0, 0 } },
+            OpcodeId.WarpFisheye => new OpcodeWarpFisheye { planes = 1, coefficients = new double[4] },
+            OpcodeId.FixVignetteRadial => new OpcodeFixVignetteRadial(),
+            OpcodeId.FixBadPixelsConstant => new OpcodeFixBadPixelsConstant(),
+            OpcodeId.FixBadPixelsList => new OpcodeFixBadPixelsList(),
+            OpcodeId.TrimBounds => new OpcodeTrimBounds(),
+            OpcodeId.MapTable => new OpcodeMapTable(),
+            OpcodeId.MapPolynomial => new OpcodeMapPolynomial(),
+            OpcodeId.GainMap => new OpcodeGainMap(),
+            OpcodeId.DeltaPerRow => new OpcodeDeltaPerRow(),
+            OpcodeId.DeltaPerColumn => new OpcodeDeltaPerColumn(),
+            OpcodeId.ScalePerRow => new OpcodeScalePerRow(),
+            OpcodeId.ScalePerColumn => new OpcodeScalePerColumn(),
+            _ => new Opcode()
+        };
+        op.header.id = id;
+        // A freshly added region opcode defaults to covering the whole image
+        // (the apply step clamps bottom/right to the image bounds).
+        if (op is OpcodeArea area and not OpcodeGainMap)
+        {
+            area.bottom = uint.MaxValue;
+            area.right = uint.MaxValue;
         }
+        Opcodes.Add(op);
+        SelectedOpcode = op;
     }
-    public void ImportDng()
+    [RelayCommand]
+    async Task AddSelectedOpcode()
     {
-        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*" };
-        dialog.InitialDirectory = SAMPLES_DIR;
+        AddOpcode(SelectedOpcodeId);
+        await ApplyOpcodes();
+    }
+    [RelayCommand]
+    async Task ImportDng()
+    {
+        var dialog = new OpenFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
         if (dialog.ShowDialog() == true)
         {
             ImportDng(dialog.FileName);
+            await ApplyOpcodes();
         }
     }
     public void ImportDng(string filename)
     {
-        Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
-        // Import OpcodeList2 and OpcodeList3
-        for (int listIndex = 2; listIndex < 4; listIndex++)
+        if (!File.Exists(EXIFTOOL_PATH))
         {
-            //int listIndex = 3;  // TODO: Add support for additional lists
-            var ms = new MemoryStream();
-            // -IFD0:OpcodeList
-            var exifProcess = Process.Start(new ProcessStartInfo("exiftool.exe", $"-b -OpcodeList{listIndex} \"{filename}\"")
-            {
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            });
-            exifProcess.StandardOutput.BaseStream.CopyTo(ms);
-            var bytes = ms.ToArray();
-            if (bytes.Length > 0)
-            {
-                foreach (Opcode opcode in ImportBin(bytes))
-                {
-                    opcode.ListIndex = listIndex;
-                    Opcodes.Add(opcode);
-                }
-                SelectedOpcode = Opcodes.Last();
-            }
+            MessageBox.Show($"ExifTool was not found at:\n{EXIFTOOL_PATH}\n\nIt is required to import opcodes from DNG files.",
+                "ExifTool missing", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
         }
-        Mouse.OverrideCursor = System.Windows.Input.Cursors.Arrow;
+        try
+        {
+            Mouse.OverrideCursor = Cursors.Wait;
+            bool found = false;
+            // Import OpcodeList1, OpcodeList2 and OpcodeList3
+            for (int listIndex = 1; listIndex < 4; listIndex++)
+            {
+                var bytes = RunExifTool($"-b -OpcodeList{listIndex} \"{filename}\"");
+                if (bytes.Length > 0)
+                {
+                    found = true;
+                    foreach (Opcode opcode in ImportBin(bytes))
+                    {
+                        opcode.ListIndex = listIndex;
+                        Opcodes.Add(opcode);
+                    }
+                }
+            }
+            if (found)
+                SelectedOpcode = Opcodes.LastOrDefault();
+            else
+                MessageBox.Show("No opcodes were found in the selected DNG file.", "Import DNG",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unable to import opcodes from DNG:\n{ex.Message}", "Import DNG",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
     }
-    public void ImportBin()
+    [RelayCommand]
+    async Task ImportBin()
     {
-        var dialog = new OpenFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*" };
-        dialog.InitialDirectory = SAMPLES_DIR;
+        var dialog = new OpenFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*", InitialDirectory = SAMPLES_DIR };
         if (dialog.ShowDialog() == true)
         {
             ImportBin(dialog.FileName);
+            await ApplyOpcodes();
         }
     }
     public void ImportBin(string filename)
     {
-        foreach (var opcode in ImportBin(File.ReadAllBytes(filename)))
+        try
         {
-            Opcodes.Add(opcode);
+            foreach (var opcode in ImportBin(File.ReadAllBytes(filename)))
+            {
+                Opcodes.Add(opcode);
+            }
+            SelectedOpcode = Opcodes.LastOrDefault();
         }
-        SelectedOpcode = Opcodes.Last();
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unable to import opcodes:\n{ex.Message}", "Import Binary",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
-    public void ExportBin()
+    [RelayCommand]
+    void ExportBin()
     {
         var dialog = new SaveFileDialog() { Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*" };
         if (dialog.ShowDialog() == true)
         {
-            File.WriteAllBytes(dialog.FileName, new OpcodesWriter().WriteOpcodeList(Opcodes));
+            try
+            {
+                File.WriteAllBytes(dialog.FileName, new OpcodesWriter().WriteOpcodeList(Opcodes));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to export opcodes:\n{ex.Message}", "Export Binary",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
-    public void ExportDNG()
+    [RelayCommand]
+    void ExportDng()
     {
-        Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+        if (!File.Exists(EXIFTOOL_PATH))
+        {
+            MessageBox.Show($"ExifTool was not found at:\n{EXIFTOOL_PATH}\n\nIt is required to export opcodes to DNG files.",
+                "ExifTool missing", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
         // OpcodeList1: applied as read directly from the file
         // OpcodeList2: applied after mapping to linear reference values
         // OpcodeList3: applied after demosaicing
-        var dialog = new SaveFileDialog() { Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*" };
-        dialog.InitialDirectory = Environment.CurrentDirectory;
-        if (dialog.ShowDialog() == true)
+        var dialog = new SaveFileDialog()
         {
-            string tmpFile = "tmpDngOpcodesEditor.bin";
-            var bytes = new OpcodesWriter().WriteOpcodeList(Opcodes);
-            File.WriteAllBytes(tmpFile, bytes);
-            // TODO: Add support for all OpcodeList
-            string tag = "OpcodeList3";         // default SubIFD
-            //string tag = "IFD0:OpcodeList3";
-            var exifProcess = Process.Start(new ProcessStartInfo("exiftool.exe", $"-overwrite_original \"-{tag}#<={tmpFile}\" \"{dialog.FileName}\"")
-            {
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            });
-            exifProcess.WaitForExit();
-            File.Delete(tmpFile);
-        }
-        Mouse.OverrideCursor = System.Windows.Input.Cursors.Arrow;
-    }
-    Opcode[] ImportBin(byte[] binaryData)
-    {
-        return new OpcodesReader().ReadOpcodeList(binaryData);
-    }
-    public void ApplyOpcodes()
-    {
-        Debug.WriteLine("ApplyOpcodes started");
-        var sw = Stopwatch.StartNew();
-
-        if (ImgSrc == null)
+            Filter = "DNG files (*.dng)|*.dng|All files (*.*)|*.*",
+            InitialDirectory = AppContext.BaseDirectory
+        };
+        if (dialog.ShowDialog() != true)
             return;
-
-        Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
-        ImgDst = ImgSrc.Clone();
-        if (DecodeGamma)
+        try
         {
-            var swGamma = Stopwatch.StartNew();
-            // Apply gamma decoding
-            Parallel.For(0, ImgDst.Height, (y) =>
+            Mouse.OverrideCursor = Cursors.Wait;
+            // Each OpcodeList tag is written from the opcodes that were tagged
+            // with the matching ListIndex.
+            for (int listIndex = 1; listIndex < 4; listIndex++)
             {
-                for (int x = 0; x < ImgDst.Width; x++)
-                {
-                    ImgDst.ChangeRgb16Pixel(x, y, (pixel => MathF.Pow(pixel / 65535.0f, 2.2f) * 65535.0f));
-                }
-            });
-            Debug.WriteLine($"\tGamma decoding executed in {swGamma.ElapsedMilliseconds}ms");
-        }
-        foreach (var opcode in Opcodes)
-        {
-            if (!opcode.Enabled)
-                continue;
-            switch (opcode.header.id)
-            {
-                case OpcodeId.WarpRectilinear:
-                    OpcodesImplementation.WarpRectilinear(ImgDst, opcode as OpcodeWarpRectilinear);
-                    break;
-                case OpcodeId.FixVignetteRadial:
-                    OpcodesImplementation.FixVignetteRadial(ImgDst, opcode as OpcodeFixVignetteRadial);
-                    break;
-                case OpcodeId.TrimBounds:
-                    OpcodesImplementation.TrimBounds(ImgDst, opcode as OpcodeTrimBounds);
-                    break;
-                case OpcodeId.GainMap:
-                    OpcodesImplementation.GainMap(ImgDst, opcode as OpcodeGainMap);
-                    break;
-                default:
-                    Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped");
+                var listOpcodes = Opcodes.Where(o => o.ListIndex == listIndex).ToArray();
+                if (listOpcodes.Length == 0)
                     continue;
+                string tmpFile = Path.Combine(AppContext.BaseDirectory, $"tmpOpcodeList{listIndex}.bin");
+                File.WriteAllBytes(tmpFile, new OpcodesWriter().WriteOpcodeList(listOpcodes));
+                RunExifTool($"-overwrite_original \"-OpcodeList{listIndex}#<={tmpFile}\" \"{dialog.FileName}\"");
+                File.Delete(tmpFile);
             }
         }
-        if (EncodeGamma)
+        catch (Exception ex)
         {
-            var swGamma = Stopwatch.StartNew();
-            // Apply gamma encoding
-            Parallel.For(0, ImgDst.Height, (y) =>
-            {
-                for (int x = 0; x < ImgDst.Width; x++)
-                {
-                    ImgDst.ChangeRgb16Pixel(x, y, (pixel => MathF.Pow(pixel / 65535.0f, 1.0f / 2.2f) * 65535.0f));
-                }
-            });
-            Debug.WriteLine($"\tGamma encoding executed in {swGamma.ElapsedMilliseconds}ms");
+            MessageBox.Show($"Unable to export opcodes to DNG:\n{ex.Message}", "Export DNG",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        ImgDst.Update();
-        Debug.WriteLine($"ApplyOpcodes executed in {sw.ElapsedMilliseconds}ms");
-        Mouse.OverrideCursor = System.Windows.Input.Cursors.Arrow;
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+    }
+    [RelayCommand]
+    async Task DeleteOpcode()
+    {
+        if (SelectedOpcode != null)
+        {
+            Opcodes.Remove(SelectedOpcode);
+            await ApplyOpcodes();
+        }
+    }
+    [RelayCommand]
+    async Task Clear()
+    {
+        Opcodes.Clear();
+        await ApplyOpcodes();
+    }
+    byte[] RunExifTool(string arguments)
+    {
+        using var ms = new MemoryStream();
+        var process = Process.Start(new ProcessStartInfo(EXIFTOOL_PATH, arguments)
+        {
+            RedirectStandardOutput = true,
+            CreateNoWindow = true,
+            UseShellExecute = false
+        });
+        process.StandardOutput.BaseStream.CopyTo(ms);
+        process.WaitForExit();
+        return ms.ToArray();
+    }
+    Opcode[] ImportBin(byte[] binaryData) => new OpcodesReader().ReadOpcodeList(binaryData);
+    static void ApplyGamma(Image img, float exponent)
+    {
+        Parallel.For(0, img.Height, (y) =>
+        {
+            for (int x = 0; x < img.Width; x++)
+            {
+                img.ChangeRgb16Pixel(x, y, pixel => MathF.Pow(pixel / 65535.0f, exponent) * 65535.0f);
+            }
+        });
+    }
+    static void ApplyOpcode(Image img, Opcode opcode)
+    {
+        switch (opcode.header.id)
+        {
+            case OpcodeId.WarpRectilinear:
+                OpcodesImplementation.WarpRectilinear(img, (OpcodeWarpRectilinear)opcode);
+                break;
+            case OpcodeId.FixVignetteRadial:
+                OpcodesImplementation.FixVignetteRadial(img, (OpcodeFixVignetteRadial)opcode);
+                break;
+            case OpcodeId.FixBadPixelsConstant:
+                OpcodesImplementation.FixBadPixelsConstant(img, (OpcodeFixBadPixelsConstant)opcode);
+                break;
+            case OpcodeId.FixBadPixelsList:
+                OpcodesImplementation.FixBadPixelsList(img, (OpcodeFixBadPixelsList)opcode);
+                break;
+            case OpcodeId.TrimBounds:
+                OpcodesImplementation.TrimBounds(img, (OpcodeTrimBounds)opcode);
+                break;
+            case OpcodeId.MapTable:
+                OpcodesImplementation.MapTable(img, (OpcodeMapTable)opcode);
+                break;
+            case OpcodeId.MapPolynomial:
+                OpcodesImplementation.MapPolynomial(img, (OpcodeMapPolynomial)opcode);
+                break;
+            case OpcodeId.GainMap:
+                OpcodesImplementation.GainMap(img, (OpcodeGainMap)opcode);
+                break;
+            case OpcodeId.DeltaPerRow:
+                OpcodesImplementation.DeltaPerRow(img, (OpcodeDeltaPerRow)opcode);
+                break;
+            case OpcodeId.DeltaPerColumn:
+                OpcodesImplementation.DeltaPerColumn(img, (OpcodeDeltaPerColumn)opcode);
+                break;
+            case OpcodeId.ScalePerRow:
+                OpcodesImplementation.ScalePerRow(img, (OpcodeScalePerRow)opcode);
+                break;
+            case OpcodeId.ScalePerColumn:
+                OpcodesImplementation.ScalePerColumn(img, (OpcodeScalePerColumn)opcode);
+                break;
+            default:
+                Debug.WriteLine($"\t{opcode.header.id} not implemented yet and skipped");
+                break;
+        }
+    }
+    partial void OnDecodeGammaChanged(bool value) => _ = ApplyOpcodes();
+    partial void OnEncodeGammaChanged(bool value) => _ = ApplyOpcodes();
+    [RelayCommand]
+    public async Task ApplyOpcodes()
+    {
+        if (ImgSrc == null)
+            return;
+        // Coalesce bursts of triggers into one trailing run.
+        if (_applyRunning)
+        {
+            _applyPending = true;
+            return;
+        }
+        _applyRunning = true;
+        try
+        {
+            do
+            {
+                _applyPending = false;
+                Mouse.OverrideCursor = Cursors.Wait;
+                var dst = ImgSrc.Clone();
+                var ops = Opcodes.Where(o => o.Enabled).ToArray();
+                bool decode = DecodeGamma, encode = EncodeGamma;
+                string error = null;
+                var sw = Stopwatch.StartNew();
+                // The pixel work touches only the managed pixel buffer, so it
+                // runs off the UI thread; the WPF bitmap is refreshed afterwards.
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        // Opcodes operate on linear values, before gamma encoding
+                        if (decode)
+                            ApplyGamma(dst, 2.2f);
+                        foreach (var op in ops)
+                            ApplyOpcode(dst, op);
+                        if (encode)
+                            ApplyGamma(dst, 1.0f / 2.2f);
+                    }
+                    catch (Exception ex)
+                    {
+                        error = ex.Message;
+                        Debug.WriteLine(ex);
+                    }
+                });
+                dst.Update();
+                ImgDst = dst;
+                Debug.WriteLine($"ApplyOpcodes executed in {sw.ElapsedMilliseconds}ms");
+                if (error != null)
+                {
+                    MessageBox.Show($"Error while applying opcodes:\n{error}", "Apply Opcodes",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            while (_applyPending);
+        }
+        finally
+        {
+            _applyRunning = false;
+            Mouse.OverrideCursor = null;
+        }
     }
 }
