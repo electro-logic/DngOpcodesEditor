@@ -20,27 +20,29 @@ public static partial class DngRawReader
 {
     delegate ushort[] SampleDecoder(byte[] file, int offset, int byteCount, int bitsPerSample, bool isLE);
 
-    public static PixelBuffer Read(byte[] tiff)
+    public static PixelBuffer Read(byte[] tiff) => Read(tiff, null);
+
+    // Overload accepting an in-memory OpcodeList2 override. When supplied,
+    // the file's L2 tag (if any) is *ignored* and the supplied opcodes are
+    // applied to the linearised CFA instead. Used by the editor to re-decode
+    // the image when the user toggles or edits an L2 opcode interactively,
+    // without re-reading the file from disk. Only opcodes with
+    // `ListIndex == 2` (and Enabled) are honoured; the rest are ignored.
+    public static PixelBuffer Read(byte[] tiff, System.Collections.Generic.IList<Opcode> l2Override)
     {
         var (isLE, firstIfd) = TiffFile.ReadHeader(tiff);
-        // EXIF Orientation lives in IFD0; apply it after demosaic so the
-        // returned buffer is in display-canonical orientation.
         int orientation = ReadOrientation(tiff, isLE, firstIfd);
-        // Walk every IFD once, picking the best image:
-        //   1st choice: CFA (32803) or LinearRaw (34892) — the actual raw image.
-        //   2nd choice: RGB (2) — useful for already-developed TIFFs and as a
-        //   fall-back when no raw IFD is present.
         int? rgbFallback = null;
         foreach (var ifd in TiffFile.EnumerateIfdsPublic(tiff, isLE, firstIfd))
         {
             uint photometric = PhotometricOf(tiff, isLE, (int)ifd);
             if (photometric == 32803 || photometric == 34892)
-                return ReadRawFromIfd(tiff, isLE, (int)ifd).ApplyOrientation(orientation);
+                return ReadRawFromIfd(tiff, isLE, (int)ifd, l2Override).ApplyOrientation(orientation);
             if (photometric == 2 && rgbFallback == null)
                 rgbFallback = (int)ifd;
         }
         if (rgbFallback != null)
-            return ReadRawFromIfd(tiff, isLE, rgbFallback.Value).ApplyOrientation(orientation);
+            return ReadRawFromIfd(tiff, isLE, rgbFallback.Value, l2Override).ApplyOrientation(orientation);
         throw new InvalidDataException("No CFA, LinearRaw or RGB image IFD found in the file.");
     }
 
@@ -60,7 +62,7 @@ public static partial class DngRawReader
         return v.Length > 0 ? v[0] : uint.MaxValue;
     }
 
-    static PixelBuffer ReadRawFromIfd(byte[] tiff, bool isLE, int ifd)
+    static PixelBuffer ReadRawFromIfd(byte[] tiff, bool isLE, int ifd, System.Collections.Generic.IList<Opcode> l2Override = null)
     {
         int width = (int)RequiredTag(tiff, isLE, ifd, 256);
         int height = (int)RequiredTag(tiff, isLE, ifd, 257);
@@ -101,7 +103,7 @@ public static partial class DngRawReader
             //    catastrophically wrong when the maps are per-Bayer-plane
             //    (e.g. Pixel 6: 4× GainMap, plane=0, rowPitch/colPitch=2)
             //    because they all collapse onto the R channel.
-            ApplyOpcodeList2OnCfa(tiff, samples, width, height);
+            ApplyOpcodeList2OnCfa(tiff, samples, width, height, l2Override);
             // 3. Demosaic the linearised samples (no further black/white
             //    correction — already done in step 1).
             BilinearDemosaicLinearised(samples, rgb, width, height, cfaPattern);
@@ -342,14 +344,24 @@ public static partial class DngRawReader
     // handles GainMap (the only L2 opcode in the corpus); other CFA-targeting
     // opcodes are skipped with a debug warning. Errors during opcode parsing
     // are swallowed — a malformed L2 should not block loading the image.
-    static void ApplyOpcodeList2OnCfa(byte[] tiff, ushort[] samples, int W, int H)
+    static void ApplyOpcodeList2OnCfa(byte[] tiff, ushort[] samples, int W, int H, System.Collections.Generic.IList<Opcode> l2Override = null)
     {
-        var payload = TiffFile.ReadOpcodeList(tiff, 2);
-        if (payload == null || payload.Length == 0)
-            return;
         Opcode[] opcodes;
-        try { opcodes = new OpcodesReader().ReadOpcodeList(payload); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"OpcodeList2 parse failed: {ex.Message}"); return; }
+        if (l2Override != null)
+        {
+            // Editor-supplied list: only honour ListIndex == 2 + Enabled.
+            opcodes = System.Linq.Enumerable.ToArray(
+                System.Linq.Enumerable.Where(l2Override, o => o.Enabled && o.ListIndex == 2));
+            if (opcodes.Length == 0) return;
+        }
+        else
+        {
+            var payload = TiffFile.ReadOpcodeList(tiff, 2);
+            if (payload == null || payload.Length == 0)
+                return;
+            try { opcodes = new OpcodesReader().ReadOpcodeList(payload); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"OpcodeList2 parse failed: {ex.Message}"); return; }
+        }
         foreach (var op in opcodes)
         {
             switch (op)

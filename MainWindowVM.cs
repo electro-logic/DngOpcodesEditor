@@ -74,6 +74,16 @@ public partial class MainWindowVM : ObservableObject
     bool _applyRunning, _applyPending;
     Image _originalImage;
     string _openedFilename;
+    // Raw DNG bytes captured at load time so we can re-run DngRawReader with
+    // an updated OpcodeList2 when the user edits an L2 opcode interactively
+    // (L2 is baked in during decode — toggling an L2 opcode otherwise has no
+    // visible effect on the preview until the file is reloaded).
+    byte[] _originalDngBytes;
+    // Set whenever something happened that *could* affect the L2 chain
+    // (parameter edit on an L2 opcode, Enabled toggle, ListIndex change).
+    // ApplyOpcodes consumes the flag and re-decodes from _originalDngBytes
+    // before running the RGB-stage pipeline.
+    bool _l2Dirty;
     public MainWindowVM()
     {
         EncodeGamma = true;
@@ -84,8 +94,24 @@ public partial class MainWindowVM : ObservableObject
             {
                 foreach (Opcode item in e.NewItems)
                 {
-                    item.PropertyChanged += (ps, pe) => _ = ApplyOpcodes();
+                    item.PropertyChanged += (ps, pe) =>
+                    {
+                        // Any property change on an L2 opcode dirties the L2
+                        // chain; a ListIndex change on *any* opcode might
+                        // move it into or out of L2, so also dirty then.
+                        if (item.ListIndex == 2 || pe.PropertyName == nameof(Opcode.ListIndex))
+                            _l2Dirty = true;
+                        _ = ApplyOpcodes();
+                    };
                 }
+            }
+            // Collection-level adds / removes can also change the L2 set
+            // (e.g. ImportDng adds L2 opcodes; DeleteOpcode removes one).
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove
+                && e.OldItems != null)
+            {
+                foreach (Opcode item in e.OldItems)
+                    if (item.ListIndex == 2) { _l2Dirty = true; break; }
             }
             if (!Opcodes.Contains(SelectedOpcode))
             {
@@ -145,6 +171,10 @@ public partial class MainWindowVM : ObservableObject
             if (Path.GetExtension(filename).Equals(".dng", StringComparison.OrdinalIgnoreCase))
             {
                 var bytes = File.ReadAllBytes(filename);
+                // Cache the raw bytes — when the user later edits an L2 opcode
+                // we re-run DngRawReader against this buffer with the modified
+                // OpcodeList2 instead of going back to disk.
+                _originalDngBytes = bytes;
                 var buffer = DngRawReader.Read(bytes);
                 img.LoadFromBuffer(buffer);
                 colorInfo = DngColorInfo.TryRead(bytes);
@@ -153,6 +183,7 @@ public partial class MainWindowVM : ObservableObject
             }
             else
             {
+                _originalDngBytes = null;
                 int bpp = img.Open(filename);
                 DecodeGamma = bpp <= 32;
             }
@@ -162,6 +193,9 @@ public partial class MainWindowVM : ObservableObject
             RebuildWorkingImage();
             Metadata = ReadFileMetadata(filename);
             SetWindowTitle(filename);
+            // Just decoded with the file's own L2 (or no L2 at all) — any
+            // dirtiness left over from previous file's edits is meaningless.
+            _l2Dirty = false;
         }
         catch (Exception ex)
         {
@@ -463,6 +497,38 @@ public partial class MainWindowVM : ObservableObject
             {
                 _applyPending = false;
                 Mouse.OverrideCursor = Cursors.Wait;
+                // If an L2 opcode changed since the last decode, re-decode the
+                // cached DNG bytes with the editor's current L2 list — L2 is
+                // baked into the raw -> RGB step, so without this an edit to
+                // an L2 opcode has no visible effect until the file is
+                // reloaded. Runs off the UI thread; cleared eagerly so a
+                // concurrent edit can re-dirty mid-pass and get picked up by
+                // the next loop iteration (the existing _applyPending coalesce).
+                if (_l2Dirty && _originalDngBytes != null)
+                {
+                    _l2Dirty = false;
+                    var l2 = Opcodes.Where(o => o.Enabled && o.ListIndex == 2).ToList();
+                    byte[] bytes = _originalDngBytes;
+                    PixelBuffer redecoded = null;
+                    string redecodeError = null;
+                    await Task.Run(() =>
+                    {
+                        try { redecoded = DngRawReader.Read(bytes, l2); }
+                        catch (Exception ex) { redecodeError = ex.Message; Debug.WriteLine(ex); }
+                    });
+                    if (redecoded != null)
+                    {
+                        var img = new Image();
+                        img.LoadFromBuffer(redecoded);
+                        _originalImage = img;
+                        RebuildWorkingImage();
+                    }
+                    else if (redecodeError != null)
+                    {
+                        MessageBox.Show($"L2 re-decode failed:\n{redecodeError}", "Apply Opcodes",
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
                 var dst = ImgSrc.Clone();
                 // OpcodeList2 opcodes target *linearised CFA* data per the DNG
                 // spec and are applied by DngRawReader before demosaicing; we
