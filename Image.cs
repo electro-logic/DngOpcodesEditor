@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -12,9 +13,16 @@ namespace DngOpcodesEditor;
 // the gamma-correct Update used to publish the buffer to the UI.
 public partial class Image : PixelBuffer
 {
+    // Internal 16-bit-per-channel surface (also used by the TIFF save path).
     WriteableBitmap _bmpRgba64;
+    // 8-bit-per-channel display surface produced from _pixels with TPDF
+    // dither, so the 16->8 quantisation noise stays incoherent instead of
+    // banding smooth gradients.
+    WriteableBitmap _bmpDisplay;
     [ObservableProperty]
     BitmapSource _bmp;
+    // Turn dither off for screenshot-comparable / deterministic output.
+    public static bool DitherDisplay { get; set; } = true;
     public int Open(string filename)
     {
         // Resolve to an absolute path: file dialogs return absolute paths, which
@@ -28,7 +36,7 @@ public partial class Image : PixelBuffer
         var tmp = new byte[_width * _height * INTERNAL_BPP];
         bmp.CopyPixels(tmp, _width * INTERNAL_BPP, 0);
         _pixels = UnsafeArray.CastArray<byte, UInt64>(tmp);
-        _bmpRgba64 = new WriteableBitmap(Width, Height, 96, 96, PixelFormats.Rgba64, null);
+        AllocateBitmaps();
         Update();
         return frame.Format.BitsPerPixel;
     }
@@ -39,14 +47,55 @@ public partial class Image : PixelBuffer
         _pixels = buffer.Pixels;
         _width = buffer.Width;
         _height = buffer.Height;
-        _bmpRgba64 = new WriteableBitmap(_width, _height, 96, 96, PixelFormats.Rgba64, null);
+        AllocateBitmaps();
         Update();
+    }
+    void AllocateBitmaps()
+    {
+        _bmpRgba64 = new WriteableBitmap(_width, _height, 96, 96, PixelFormats.Rgba64, null);
+        _bmpDisplay = new WriteableBitmap(_width, _height, 96, 96, PixelFormats.Bgr32, null);
     }
     public void Update()
     {
-        // Convert the internal Rgba64 format to Bgr24 (WPF format)
+        // Keep the 16-bit-per-channel surface up to date — the TIFF saver and
+        // any future "save as 16-bit" path reads from it.
         _bmpRgba64.WritePixels(new Int32Rect(0, 0, _width, _height), _pixels, _width * sizeof(UInt64), 0);
-        Bmp = new FormatConvertedBitmap(_bmpRgba64, PixelFormats.Bgr24, null, 0);
+        // Produce the 8-bit display surface with TPDF dither so banding in
+        // smooth gradients turns into ±1 LSB of imperceptible noise.
+        var bgr = new byte[_height * _width * 4];
+        bool dither = DitherDisplay;
+        Parallel.For(0, _height, y =>
+        {
+            // Per-row seeded RNG keeps the noise pattern deterministic for a
+            // given image (so consecutive Update() calls don't visibly shimmer)
+            // while still decorrelating across rows.
+            var rng = new Random(unchecked((int)(y * 0x9E3779B9u + 1u)));
+            int rowBase = y * _width * 4;
+            for (int x = 0; x < _width; x++)
+            {
+                ulong p = _pixels[x + y * _width];
+                int r16 = (int)(p & 0xFFFF);
+                int g16 = (int)((p >> 16) & 0xFFFF);
+                int b16 = (int)((p >> 32) & 0xFFFF);
+                if (dither)
+                {
+                    // TPDF noise in [-256, 256], centred at 0 — exactly ±1 of
+                    // the 8-bit LSB once we shift down by 8.
+                    int n = rng.Next(0, 257) + rng.Next(0, 257) - 256;
+                    r16 += n; g16 += n; b16 += n;
+                }
+                byte r8 = (byte)Math.Clamp(r16 >> 8, 0, 255);
+                byte g8 = (byte)Math.Clamp(g16 >> 8, 0, 255);
+                byte b8 = (byte)Math.Clamp(b16 >> 8, 0, 255);
+                int i = rowBase + x * 4;
+                bgr[i + 0] = b8;
+                bgr[i + 1] = g8;
+                bgr[i + 2] = r8;
+                bgr[i + 3] = 0;
+            }
+        });
+        _bmpDisplay.WritePixels(new Int32Rect(0, 0, _width, _height), bgr, _width * 4, 0);
+        Bmp = _bmpDisplay;
     }
     public Image Clone()
     {
@@ -55,6 +104,7 @@ public partial class Image : PixelBuffer
         clone._width = _width;
         clone._height = _height;
         clone._bmpRgba64 = _bmpRgba64.Clone();
+        clone._bmpDisplay = _bmpDisplay.Clone();
         return clone;
     }
     public void SaveImage(string filename)

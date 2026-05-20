@@ -9,6 +9,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **TPDF dither at the WPF display 16→8 conversion.** The preview previously went through `FormatConvertedBitmap` (`Rgba64 → Bgr24`), which truncates and can produce visible banding in smooth gradients (skies, gradients). `Image.Update` now builds the on-screen Bgr32 bitmap manually with per-pixel triangular-PDF dither (±1 8-bit LSB, per-row seeded RNG for stable noise pattern across redraws), so the 8-bit quantisation noise stays incoherent and gradients look clean. The internal 16-bit buffer and the TIFF save path are unaffected. Toggle via `Image.DitherDisplay`.
 - **EXIF Orientation tag (274) is now honoured when opening DNGs.** `PixelBuffer.ApplyOrientation` implements all eight EXIF orientations (identity / mirror / rotate 180 / rotate 90 CW / rotate 90 CCW / two transposes), and `DngRawReader.Read` applies the IFD0 orientation after demosaic. Files in the FiveK test set that were previously stuck in raw-sensor orientation now load correctly: `a0003-NKIM_MG_8178` (90 CW) and `a0074-WP_CRW_0343` (90 CCW) come out portrait, `a0009-kme_372` (180) right-side-up.
 - `Orientation` added to the metadata viewer with friendly value names ("Normal", "Rotate 90 CW", etc.) instead of the numeric code.
 - 5 new tests covering identity / 180 / 90 CW / 90 CCW / out-of-range orientations on a 2×3 test buffer.
